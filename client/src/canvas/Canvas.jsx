@@ -2,6 +2,7 @@ import { useRef, useEffect } from "react";
 import {drawBoard} from "../utils/render"
 import { getMousePosition } from "../utils/geometry";
 import Toolbar from "../components/Toolbar";
+import socket from "../sockets/socket";
 
 function Canvas() {
   const canvasRef = useRef(null);
@@ -66,6 +67,9 @@ function Canvas() {
     isDrawing.current = false;
     redoStack.current = [];
     board.current.push(currentStroke.current);
+
+    // emitting the stroke to the socket server so it broadcasts it
+    socket.emit("stroke",currentStroke.current)
     currentStroke.current = null;
     render();
   };
@@ -144,6 +148,18 @@ function Canvas() {
         "mouseup",
         handleWindowMouseUp
     );
+
+    // receive the strokes from the original sender via the socket server
+    socket.on("stroke",(stroke) => {
+      console.log("📥 Received stroke", stroke);
+       board.current.push(stroke);
+       drawBoard(
+        contextRef.current,
+        canvasRef.current,
+        board.current,
+        currentStroke.current
+    );
+    })
 
     return () => {
         window.removeEventListener(
