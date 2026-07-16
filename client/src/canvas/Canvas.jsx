@@ -1,10 +1,15 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import {drawBoard} from "../utils/render"
 import { getMousePosition } from "../utils/geometry";
 import Toolbar from "../components/Toolbar";
 import socket from "../sockets/socket";
+import OnlineUsers from "../components/Onlineusers";
 
-function Canvas() {
+function Canvas({roomId,username}) {
+
+  // to send to the onlineusers.jsx for the left panel
+  const [users,setUsers] = useState([username]);
+
   const canvasRef = useRef(null);
   const contextRef = useRef(null);
 
@@ -149,6 +154,29 @@ function Canvas() {
         handleWindowMouseUp
     );
 
+    // saying hi to server from browser using .emit
+        // means socket wants to join room with roomId
+        socket.emit("join-room",{
+          roomId,
+          username
+        });
+
+        // send the first msg with roomid
+        socket.emit("hello",{
+          message: "hello server !",
+        });
+
+        // get the reply from server
+        socket.on("welcome",(msg) => {
+          console.log(msg);
+        })
+
+        // getting the users from the server rather than using the frontend 
+        socket.on("room-users", (users) => {
+            console.log(users);
+            setUsers(users);
+        });
+
     // receive the strokes from the original sender via the socket server
     socket.on("stroke",(stroke) => {
       console.log("📥 Received stroke", stroke);
@@ -171,28 +199,16 @@ function Canvas() {
 
   return (
     <>
-    <div className="flex items-center justify-between pt-2 mx-8">
-        <div>
-            <h1 className="text-4xl font-bold text-gray-800">
-                Collaborative Whiteboard
-            </h1>
+    <div className="flex gap-6 px-8 pb-8 pt-5">
+    
+    {/* left online participant panel */}
+     <OnlineUsers
+    users={users}
+    username={username}
+    />
 
-            <p className="text-gray-500 mt-1">
-                Draw • Collaborate • Create
-            </p>
-        </div>
-
-        <div className="bg-white rounded-full shadow px-5 py-2 flex items-center gap-2">
-            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-
-            <span className="text-sm font-medium text-gray-700">
-                Local Mode
-            </span>
-        </div>
-    </div>
-
-    <div className="flex justify-center gap-6 px-8 pb-8 pt-5">
-      <div className="flex-1 bg-white rounded-2xl border border-gray-200 shadow-lg p-4 overflow-hidden">
+    {/* canvas */}
+    <div className="flex-1 bg-white rounded-2xl border border-gray-200 shadow-lg p-4 overflow-hidden">
     <canvas
       ref={canvasRef}
       width={950}
@@ -202,6 +218,8 @@ function Canvas() {
       onMouseMove={handleMouseMove}
     />
     </div>
+
+    {/* right toolbar */}
     <div className="w-72 shrink-0 bg-white rounded-2xl shadow-lg p-6 space-y-1 flex flex-col gap-8 h-fit">
     <Toolbar 
     currentColor={currentColor}
