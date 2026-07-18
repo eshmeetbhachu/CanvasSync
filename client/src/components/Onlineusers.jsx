@@ -12,7 +12,7 @@ function OnlineUsers({ users, username }) {
                 {users.map((user) => (
 
                     <div
-                        key={user}
+                        key={user.username}
                         className="flex items-center gap-3"
                     >
 
@@ -32,7 +32,7 @@ function OnlineUsers({ users, username }) {
                                     text-lg
                                 "
                             >
-                                {user[0].toUpperCase()}
+                                {user.username[0].toUpperCase()}
                             </div>
 
                             <div
@@ -55,9 +55,9 @@ function OnlineUsers({ users, username }) {
 
                             <p className="font-semibold text-gray-800">
 
-                                {user}
+                                {user.username}
 
-                                {user === username && (
+                                {user.username === username && (
 
                                     <span
                                         className="

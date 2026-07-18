@@ -4,11 +4,16 @@ import { getMousePosition } from "../utils/geometry";
 import Toolbar from "../components/Toolbar";
 import socket from "../sockets/socket";
 import OnlineUsers from "../components/Onlineusers";
+import throttle from "../utils/throttle";
+import RemoteCursor from "../components/RemoteCursor";
 
 function Canvas({roomId,username}) {
 
   // to send to the onlineusers.jsx for the left panel
-  const [users,setUsers] = useState([username]);
+  const [users,setUsers] = useState([]);
+
+  // same as rooms for storing the cursor details
+  const [cursors, setCursors] = useState({});
 
   const canvasRef = useRef(null);
   const contextRef = useRef(null);
@@ -66,6 +71,11 @@ function Canvas({roomId,username}) {
     }
   };
 
+  const sendStrokes = () => {
+    // emitting the stroke to the socket server so it broadcasts it
+    socket.emit("stroke",currentStroke.current)
+  }
+
   // making the finish stroke as a function so it can be used anywhere
   const finishStroke = () => {
     if (!isDrawing.current || !currentStroke.current) return;
@@ -73,11 +83,24 @@ function Canvas({roomId,username}) {
     redoStack.current = [];
     board.current.push(currentStroke.current);
 
-    // emitting the stroke to the socket server so it broadcasts it
-    socket.emit("stroke",currentStroke.current)
+    sendStrokes();
     currentStroke.current = null;
     render();
   };
+
+    // we will use throttle function for this
+  const updateCursor = ({ x, y }) => {
+
+    socket.emit("cursor-move", {
+        id: socket.id,
+        name: username,
+        x,
+        y,
+    });
+  };
+
+  // adding throttle to the cursor movement req
+  const throttledUpdateCursor = throttle(updateCursor, 50);
 
   const handleMouseDown = (event) => {
     console.log(currentTool)
@@ -106,11 +129,13 @@ function Canvas({roomId,username}) {
   };
 
   const handleMouseMove = (event) => {
+
     if(!isDrawing.current) return;
     const { x, y } = getMousePosition(
     event,
     canvasRef.current
     );
+    throttledUpdateCursor({ x, y });  
     // push the points on each mouse move
     currentStroke.current.points.push({x,y});
     render();
@@ -120,7 +145,8 @@ function Canvas({roomId,username}) {
     finishStroke();
   };
 
-  // shifted the sraw board and draw dtroke to render.js in utils
+
+  // shifted the draw board and draw stroke to render.js in utils
 
   const undo = () => {
     if (board.current.length === 0) return
@@ -176,18 +202,37 @@ function Canvas({roomId,username}) {
             console.log(users);
             setUsers(users);
         });
-
+ 
     // receive the strokes from the original sender via the socket server
     socket.on("stroke",(stroke) => {
       console.log("📥 Received stroke", stroke);
        board.current.push(stroke);
-       drawBoard(
-        contextRef.current,
-        canvasRef.current,
-        board.current,
-        currentStroke.current
-    );
+       render();
     })
+
+    // gets the socket details and adds them to the state, also we dont add we assign
+    socket.on("cursor-move", (cursor) => {
+      console.log(cursor);
+        setCursors((prev) => ({
+            ...prev,
+            [cursor.id]: cursor,
+        }));
+    });
+
+    // to remove the disconneted socket id cursor details.
+    // we use this method to create new obj and not directly use delete
+    socket.on("cursor-remove", ({ id }) => {
+        setCursors((prev) => {
+            const { [id]: removedCursor, ...remaining } = prev;
+            return remaining;
+        });
+    });
+
+    // receiving the strokes from the mongodb database
+    socket.on("board-data", (strokes) => {
+        board.current = strokes;
+        render();
+    });
 
     return () => {
         window.removeEventListener(
@@ -196,6 +241,7 @@ function Canvas({roomId,username}) {
         );
     };
   }, []);
+
 
   return (
     <>
@@ -208,7 +254,7 @@ function Canvas({roomId,username}) {
     />
 
     {/* canvas */}
-    <div className="flex-1 bg-white rounded-2xl border border-gray-200 shadow-lg p-4 overflow-hidden">
+    <div className="relative flex-1 bg-white rounded-2xl border border-gray-200 shadow-lg p-4 overflow-hidden">
     <canvas
       ref={canvasRef}
       width={950}
@@ -217,6 +263,13 @@ function Canvas({roomId,username}) {
       onMouseUp={handleMouseUp}
       onMouseMove={handleMouseMove}
     />
+    {/*helps make the box over the cursor */}
+    {Object.values(cursors).map((cursor) => (
+        <RemoteCursor
+            key={cursor.id}
+            cursor={cursor}
+        />
+    ))}
     </div>
 
     {/* right toolbar */}

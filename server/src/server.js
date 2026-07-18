@@ -1,11 +1,16 @@
 import http from "http";
 import { Server } from "socket.io";
 
+// database connection
+import connectDB from "./config/db.js";
+
 import app from "./app.js";
 import { PORT } from "./config/env.js";
 
 // importing the registersocket
 import registerSocket from "./sockets/index.js";
+
+await connectDB();
 
 // created the hhtp server
 const server = http.createServer(app);

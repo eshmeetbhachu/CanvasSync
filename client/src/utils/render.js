@@ -32,7 +32,7 @@ export const drawBoard = (
     ctx.clearRect(
         0,
         0,
-        canvas.width,
+        canvas.strokeWidth,
         canvas.height
     );
 
