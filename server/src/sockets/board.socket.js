@@ -1,4 +1,4 @@
-import { saveStroke , loadBoard } from "../services/board.service.js";
+import { saveStroke , loadBoard , deleteStroke , undoStroke ,redoStroke} from "../services/board.service.js";
 
 // the structure is . rooms is an object, and inside we make objects named the roomId, and inside we store the socketid as key and usernname as values.
 const rooms = {};   
@@ -62,6 +62,26 @@ const registerBoardSocket = (io, socket) => {
                 .emit("cursor-move", cursor);
 
     });
+
+    // get the erased stroke and broadcast it to others + change in db
+    socket.on("erase", async (strokeId) => {
+        const roomId = socket.data.roomId;
+        socket.broadcast.to(roomId).emit("erase", strokeId);
+        await deleteStroke(roomId, strokeId);
+    });
+
+    // for undo
+    socket.on("undo", async () => {
+        const roomId = socket.data.roomId;
+        socket.broadcast.to(roomId).emit("undo");
+        await undoStroke(roomId);
+    });
+
+    socket.on("redo", async(restoredStroke) => {
+        const roomId = socket.data.roomId;
+        socket.broadcast.to(roomId).emit("redo");
+        await redoStroke(roomId,restoredStroke);
+    })
 
     // for the disconnection
     socket.on("disconnect", () => {

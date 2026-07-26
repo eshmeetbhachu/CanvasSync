@@ -27,4 +27,39 @@ const loadBoard = async (roomId) => {
     return board ?? { strokes: [] };
 };
 
-export { saveStroke , loadBoard };
+const deleteStroke = async (roomId, strokeId) => {
+    await Board.findOneAndUpdate(
+        { roomId },
+        {
+            $pull: {
+                strokes: {
+                    id: strokeId,
+                },
+            },
+        }
+    );
+};
+
+const undoStroke = async (roomId) => {
+    await Board.findOneAndUpdate(
+        { roomId },
+        {
+            $pop: {
+                strokes: 1,
+            },
+        }
+    );
+};
+
+const redoStroke = async (roomId,restoredStroke) => {
+    await Board.findOneAndUpdate(
+        {roomId},
+        {
+            $push: {
+                strokes: restoredStroke,
+            }
+        }
+    )
+}
+
+export { saveStroke , loadBoard , deleteStroke , undoStroke ,redoStroke};

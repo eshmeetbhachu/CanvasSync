@@ -53,6 +53,7 @@ function Canvas({roomId,username}) {
     event,
     canvasRef.current
     );
+    console.log("eraser function reached")
 
     for(let i=0;i < board.current.length; i++){
       const stroke = board.current[i];
@@ -63,8 +64,11 @@ function Canvas({roomId,username}) {
         const distance = Math.sqrt(dx*dx + dy*dy);
 
         if(distance<=tolerance){
+          // get the erased stroke to send to other browsers
+          const erasedStroke = board.current[i];
           board.current.splice(i,1);
           render();
+          socket.emit("erase", erasedStroke.id);
           return
         }
       }
@@ -154,6 +158,8 @@ function Canvas({roomId,username}) {
     redoStack.current.push(removedStroke);
     render();
     console.log(redoStack.current);
+
+    socket.emit("undo");
   }
 
   const redo = () => {
@@ -161,6 +167,8 @@ function Canvas({roomId,username}) {
     const restoredStroke = redoStack.current.pop();
     board.current.push(restoredStroke);
     render();
+
+    socket.emit("redo",restoredStroke);
   }
 
   useEffect(() => {
@@ -234,11 +242,44 @@ function Canvas({roomId,username}) {
         render();
     });
 
+    // receiving the stroke erased and then updating the board.current
+    socket.on("erase", (strokeId) => {
+        board.current = board.current.filter(
+            stroke => stroke.id !== strokeId
+        );
+        render();
+    });
+
+    // the same undo code for all the other boards
+    socket.on("undo", () => {
+        if (board.current.length === 0) return;
+        const removedStroke = board.current.pop();
+        redoStack.current.push(removedStroke);
+        render();
+    });
+
+    socket.on("redo", () => {
+        if (redoStack.current.length === 0) return;
+        const restoredStroke = redoStack.current.pop();
+        board.current.push(restoredStroke);
+        render();
+    });
+
     return () => {
         window.removeEventListener(
             "mouseup",
             handleWindowMouseUp
         );
+
+        socket.off("welcome");
+        socket.off("room-users");
+        socket.off("stroke");
+        socket.off("cursor-move");
+        socket.off("cursor-remove");
+        socket.off("board-data");
+        socket.off("erase");
+        socket.off("undo");
+        socket.off("redo");
     };
   }, []);
 
