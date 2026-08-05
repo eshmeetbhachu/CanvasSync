@@ -17,6 +17,15 @@ CanvasSync is a real-time collaborative whiteboard that enables multiple users t
 - 🔄 Cross-server synchronization using Socket.IO Redis Adapter
 
 ---
+## Home Page
+
+![Home](client/src/assets/home.png)
+
+## Multi User Collaboration
+
+![Multi User](client/src/assets/multi-user.png)
+
+---
 
 ## 🏗️ System Architecture
 
