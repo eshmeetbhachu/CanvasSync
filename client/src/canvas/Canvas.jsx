@@ -213,7 +213,7 @@ function Canvas({roomId,username}) {
  
     // receive the strokes from the original sender via the socket server
     socket.on("stroke",(stroke) => {
-      console.log("📥 Received stroke", stroke);
+      console.log("Received stroke", stroke);
        board.current.push(stroke);
        render();
     })
@@ -329,3 +329,5 @@ function Canvas({roomId,username}) {
 }
 
 export default Canvas;
+
+// address the syncronization 
