@@ -6,10 +6,15 @@ const publisher = createClient({
 
 const subscriber = publisher.duplicate();
 
+const client = createClient({
+    url:"redis://localhost:6379"
+})
+
 const connectRedis = async() => {
     await publisher.connect();
     await subscriber.connect();
+    await client.connect();
     console.log("redis connected");
 }
 
-export { publisher, subscriber ,connectRedis};
+export { publisher, subscriber ,client ,connectRedis};
