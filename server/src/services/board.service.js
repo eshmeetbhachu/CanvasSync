@@ -3,6 +3,7 @@ import Board from "../models/Board.js";
 import {client} from "../config/redis.js"
 
 const saveStroke = async (roomId, stroke) => {
+
     await Board.findOneAndUpdate(
         {roomId},
         {

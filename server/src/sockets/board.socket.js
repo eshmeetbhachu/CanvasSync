@@ -1,3 +1,4 @@
+import strokeQueue from "../config/queue.js";
 import { saveStroke , loadBoard , deleteStroke , undoStroke ,redoStroke} from "../services/board.service.js";
 
 // the structure is . rooms is an object, and inside we make objects named the roomId, and inside we store the socketid as key and usernname as values.
@@ -63,13 +64,20 @@ const registerBoardSocket = (io, socket) => {
     // adding the handler for getting strokes
     socket.on("stroke",async (stroke) => {
         const roomId = socket.data.roomId;
+
+        // Real-time path: immediately send stroke to other users
         socket.broadcast.to(roomId).emit("stroke",stroke);
 
-        // from boared.service.js we get function to store in db
+        // Persistence path: put the work into the queue
         try {
-            await saveStroke(roomId, stroke);
+            const job = await strokeQueue.add("save-stroke", {
+            roomId,
+            stroke,
+        });
+
+        console.log("Job added:", job.id);
         } catch (error) {
-            console.error("Failed to save stroke:", error);
+            console.error("Failed to save stroke to queue:", error);
         }
     })
 

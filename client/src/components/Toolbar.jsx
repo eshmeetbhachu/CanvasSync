@@ -62,6 +62,7 @@ function Toolbar({
                         style={{ backgroundColor: color }}
                     />
                 ))}
+                
             </div>
         </div>
     
