@@ -56,6 +56,6 @@ io.adapter(createAdapter(publisher, subscriber));
 registerSocket(io);
 
 // used the http server to start it and run it
-server.listen(PORT, () => {
+server.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
 });
