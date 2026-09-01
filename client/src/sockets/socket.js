@@ -1,14 +1,16 @@
-import {io} from "socket.io-client"
+import { io } from "socket.io-client";
 
-//  METHOD 1 FOR TESTING MULTIPLE SERVER
-const params = new URLSearchParams(window.location.search);
+const createSocket = (accessToken) => {
+    const socket = io(import.meta.env.VITE_API_URL, {
+        auth: {
+            token: accessToken,
+        },
+    });
 
-const backendPort = params.get("backend") || "3000";
+    return socket;
+};
 
-const socket = io(`http://localhost:${backendPort}`);
-
-export default socket;
-
+export default createSocket;
 
 
 //  METHOD 2 NORMAL METHOD

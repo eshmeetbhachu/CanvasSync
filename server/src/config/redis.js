@@ -1,13 +1,15 @@
 import { createClient } from "redis";
 
+const redisUrl = process.env.REDIS_URL;
+
 const publisher = createClient({
-    url:"redis://localhost:6379",
+    url:redisUrl,
 })
 
 const subscriber = publisher.duplicate();
 
 const client = createClient({
-    url:"redis://localhost:6379"
+    url:redisUrl,
 })
 
 const connectRedis = async() => {

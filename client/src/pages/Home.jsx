@@ -1,24 +1,31 @@
-import { use, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 function Home() {
 
-    const [roomId, setRoomId] = useState("");
-    const [username, setUsername] = useState("");
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
 
     const navigate = useNavigate();
 
-    const handleJoinRoom = () => {
+    const { login } = useAuth();
 
-        if (!roomId.trim()) return;
+    const handleLogin = async () => {
 
-        navigate(`/board/${roomId}`,{
-            // sending the name without adding it to the url
-            state:{
-                username 
-            }
-        });
+        if (!email.trim() || !password.trim()) return;
 
+        try {
+
+            const data = await login(email, password);
+
+            console.log("Login successful");
+
+            navigate("/rooms");
+
+        } catch (error) {
+            console.error(error.message);
+        }
     };
 
     return (
@@ -32,28 +39,44 @@ function Home() {
 
                 <input
                     className="border rounded-lg w-full p-3 mb-4"
-                    placeholder="Enter Username"
-                    value={username}
+                    placeholder="Email"
+                    value={email}
                     onChange={(e) =>
-                        setUsername(e.target.value)
+                        setEmail(e.target.value)
                     }
                 />
 
                 <input
+                    type="password"
                     className="border rounded-lg w-full p-3 mb-4"
-                    placeholder="Enter Room ID"
-                    value={roomId}
+                    placeholder="Password"
+                    value={password}
                     onChange={(e) =>
-                        setRoomId(e.target.value)
+                        setPassword(e.target.value)
                     }
                 />
 
                 <button
-                    onClick={handleJoinRoom}
+                    onClick={handleLogin}
                     className="w-full bg-blue-600 text-white rounded-lg py-3"
                 >
-                    Join Room
+                    Login
                 </button>
+
+                <div className="text-center mt-5">
+
+                    <p className="text-sm text-gray-500">
+                        Don't have an account?
+                    </p>
+
+                    <button
+                        onClick={() => navigate("/signup")}
+                        className="text-blue-600 font-semibold mt-1"
+                    >
+                        Sign Up
+                    </button>
+
+                </div>
 
             </div>
 

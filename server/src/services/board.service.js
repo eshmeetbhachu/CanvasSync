@@ -2,6 +2,13 @@ import Board from "../models/Board.js";
 //importung the redis client for cache.
 import {client} from "../config/redis.js"
 
+// to make consistency in redis for all methods
+const invalidateBoardCache = async (roomId) => {
+    const key = `room:${roomId}:strokes`;
+
+    await client.del(key);
+};
+
 const saveStroke = async (roomId, stroke) => {
 
     await Board.findOneAndUpdate(
@@ -84,6 +91,7 @@ const deleteStroke = async (roomId, strokeId) => {
             },
         }
     );
+    await invalidateBoardCache(roomId);
 };
 
 const undoStroke = async (roomId) => {
@@ -95,6 +103,7 @@ const undoStroke = async (roomId) => {
             },
         }
     );
+    await invalidateBoardCache(roomId);
 };
 
 const redoStroke = async (roomId,restoredStroke) => {
@@ -105,7 +114,8 @@ const redoStroke = async (roomId,restoredStroke) => {
                 strokes: restoredStroke,
             }
         }
-    )
+    );
+    await invalidateBoardCache(roomId);
 }
 
 export { saveStroke , loadBoard , deleteStroke , undoStroke ,redoStroke};

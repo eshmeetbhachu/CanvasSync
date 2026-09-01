@@ -1,4 +1,6 @@
 import strokeQueue from "../config/queue.js";
+import Room from "../models/Room.js";
+import User from "../models/User.js";
 import { saveStroke , loadBoard , deleteStroke , undoStroke ,redoStroke} from "../services/board.service.js";
 
 // the structure is . rooms is an object, and inside we make objects named the roomId, and inside we store the socketid as key and usernname as values.
@@ -32,10 +34,31 @@ const registerBoardSocket = (io, socket) => {
 
     // joins the room with providied roomId
     socket.on("join-room",async (data) => {
+
+        const user = await User.findById(socket.data.userId);
+        console.log("Authenticated user:", {
+            id: user._id,
+            username: user.username,
+        });
+        if(!user){return;}
+
+        const room = await Room.findOne({
+            roomId: data.roomId
+        });
+
+        if (!room) {
+            socket.emit("room-error", {
+                message: "Room does not exist"
+            });
+
+            return;
+        }
+
         await socket.join(data.roomId);
         // stored the roomid in extra storage of socket so we dont have to get it again and again
         socket.data.roomId = data.roomId;
-        socket.data.username = data.username;
+        socket.data.username = user.username;
+        console.log("Socket data:", socket.data);
 
         // the below was the hardcoded method to get the usernames of the sockets.
 
@@ -58,7 +81,7 @@ const registerBoardSocket = (io, socket) => {
         // send the board to the frontend
         socket.emit("board-data", board.strokes);
 
-        console.log(`✅ ${socket.id} aka ${data.username} joined ${data.roomId}`);
+        console.log(`✅ ${socket.id} aka ${socket.data.username} joined ${data.roomId}`);
     });
 
     // adding the handler for getting strokes

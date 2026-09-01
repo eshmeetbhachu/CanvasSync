@@ -1,13 +1,20 @@
 import { useRef, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {drawBoard} from "../utils/render"
 import { getMousePosition } from "../utils/geometry";
 import Toolbar from "../components/Toolbar";
-import socket from "../sockets/socket";
+import createSocket from "../sockets/socket";
 import OnlineUsers from "../components/Onlineusers";
 import throttle from "../utils/throttle";
 import RemoteCursor from "../components/RemoteCursor";
+import { useAuth } from "../context/AuthContext";
 
-function Canvas({roomId,username}) {
+function Canvas({roomId,onRoomError}) {
+
+  const { accessToken, user } = useAuth();
+  const socketRef = useRef(null);
+
+  const navigate = useNavigate();
 
   // to send to the onlineusers.jsx for the left panel
   const [users,setUsers] = useState([]);
@@ -39,6 +46,14 @@ function Canvas({roomId,username}) {
 
   // making a helper function for rendering the board
   const render = () => {
+
+    console.log(
+        "RENDERING BOARD:",
+        board.current.length,
+        "current stroke:",
+        currentStroke.current
+    );
+
     drawBoard(
         contextRef.current,
         canvasRef.current,
@@ -68,7 +83,7 @@ function Canvas({roomId,username}) {
           const erasedStroke = board.current[i];
           board.current.splice(i,1);
           render();
-          socket.emit("erase", erasedStroke.id);
+          socketRef.current.emit("erase", erasedStroke.id);
           return
         }
       }
@@ -77,7 +92,7 @@ function Canvas({roomId,username}) {
 
   const sendStrokes = () => {
     // emitting the stroke to the socket server so it broadcasts it
-    socket.emit("stroke",currentStroke.current)
+    socketRef.current.emit("stroke",currentStroke.current)
   }
 
   // making the finish stroke as a function so it can be used anywhere
@@ -87,6 +102,8 @@ function Canvas({roomId,username}) {
     redoStack.current = [];
     board.current.push(currentStroke.current);
 
+    console.log("LOCAL BOARD AFTER STROKE:", board.current);
+
     sendStrokes();
     currentStroke.current = null;
     render();
@@ -95,9 +112,9 @@ function Canvas({roomId,username}) {
     // we will use throttle function for this
   const updateCursor = ({ x, y }) => {
 
-    socket.emit("cursor-move", {
-        id: socket.id,
-        name: username,
+    socketRef.current.emit("cursor-move", {
+        id: socketRef.current.id,
+        name: user.username,
         x,
         y,
     });
@@ -159,7 +176,7 @@ function Canvas({roomId,username}) {
     render();
     console.log(redoStack.current);
 
-    socket.emit("undo");
+    socketRef.current.emit("undo");
   }
 
   const redo = () => {
@@ -168,10 +185,21 @@ function Canvas({roomId,username}) {
     board.current.push(restoredStroke);
     render();
 
-    socket.emit("redo",restoredStroke);
+    socketRef.current.emit("redo",restoredStroke);
   }
 
+  const handleRoomError = ({ message }) => {
+      onRoomError(message);
+  };
+
   useEffect(() => {
+
+    if (!accessToken) return;
+
+    const socket = createSocket(accessToken);
+    socketRef.current = socket;
+
+
     const canvas = canvasRef.current;
     const context = canvas.getContext("2d");
     context.lineCap = "round";
@@ -191,8 +219,7 @@ function Canvas({roomId,username}) {
     // saying hi to server from browser using .emit
         // means socket wants to join room with roomId
         socket.emit("join-room",{
-          roomId,
-          username
+          roomId
         });
 
         // send the first msg with roomid
@@ -265,6 +292,8 @@ function Canvas({roomId,username}) {
         render();
     });
 
+    socket.on("room-error", handleRoomError);
+
     return () => {
         window.removeEventListener(
             "mouseup",
@@ -280,8 +309,12 @@ function Canvas({roomId,username}) {
         socket.off("erase");
         socket.off("undo");
         socket.off("redo");
+        socket.off("room-error", handleRoomError);
+
+        socket.disconnect();
+        socketRef.current = null;
     };
-  }, []);
+  }, [accessToken]);
 
 
   return (
@@ -291,7 +324,7 @@ function Canvas({roomId,username}) {
     {/* left online participant panel */}
      <OnlineUsers
     users={users}
-    username={username}
+    username={user?.username}
     />
 
     {/* canvas */}

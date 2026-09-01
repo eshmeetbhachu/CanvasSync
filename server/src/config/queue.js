@@ -2,8 +2,7 @@ import {Queue} from "bullmq";
 
 const strokeQueue = new Queue("stroke-persistence" , {
     connection : {
-        host: "localhost",
-        port: 6379,
+        url: process.env.REDIS_URL,
     },
 
     // this is for retry and backoff

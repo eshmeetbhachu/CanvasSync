@@ -1,15 +1,14 @@
 import { useState } from "react";
-import { useLocation, useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import Canvas from "../canvas/Canvas";
 
 function Board() {
 
     const { roomId } = useParams();
     const [copied, setCopied] = useState(false);
+    const navigate = useNavigate();
+    const [roomError, setRoomError] = useState("");
 
-    // getting the state from the navigation
-    const location = useLocation();
-    const username = location.state?.username;
 
     const copyInviteLink = async () => {
 
@@ -28,6 +27,34 @@ function Board() {
     return (
         <div className="min-h-screen bg-gray-100">
 
+            {roomError ? (
+
+            <div className="min-h-screen flex items-center justify-center">
+
+                <div className="bg-white rounded-xl shadow-lg p-8 w-96 text-center">
+
+                    <h2 className="text-2xl font-bold text-gray-800 mb-3">
+                        Unable to Join Board
+                    </h2>
+
+                    <p className="text-red-500 mb-6">
+                        {roomError}
+                    </p>
+
+                    <button
+                        onClick={() => navigate("/rooms")}
+                        className="w-full bg-blue-600 text-white rounded-lg py-3"
+                    >
+                        Back to Rooms
+                    </button>
+
+                </div>
+
+            </div>
+
+        ) : (
+
+            <>
             <div className="flex items-center justify-between px-8 py-4">
 
                 <div>
@@ -77,7 +104,9 @@ function Board() {
 
             </div>
 
-            <Canvas roomId={roomId} username={username} />
+            <Canvas roomId={roomId} onRoomError={setRoomError} />
+            </>
+        )}
 
         </div>
     );
