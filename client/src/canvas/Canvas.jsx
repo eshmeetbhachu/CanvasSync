@@ -218,8 +218,12 @@ function Canvas({roomId,onRoomError}) {
 
     // saying hi to server from browser using .emit
         // means socket wants to join room with roomId
-        socket.emit("join-room",{
-          roomId
+        socket.on("connect", () => {
+            console.log("Socket connected:", socket.id);
+
+            socket.emit("join-room", {
+                roomId
+            });
         });
 
         // send the first msg with roomid
@@ -314,7 +318,7 @@ function Canvas({roomId,onRoomError}) {
         socket.disconnect();
         socketRef.current = null;
     };
-  }, [accessToken]);
+  }, [accessToken,roomId]);
 
 
   return (
