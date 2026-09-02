@@ -5,6 +5,7 @@ const createSocket = (accessToken) => {
         auth: {
             token: accessToken,
         },
+        autoConnect: false,
     });
 
     return socket;

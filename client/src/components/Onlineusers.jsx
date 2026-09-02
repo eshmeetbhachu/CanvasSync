@@ -3,7 +3,7 @@ function OnlineUsers({ users, username }) {
     console.log("Online users:", users);
     
     return (
-        <div className="w-50 shrink-0 bg-white rounded-2xl shadow-lg p-4 h-fit">
+        <div className="w-56 shrink-0 bg-white rounded-2xl shadow-lg p-4 h-fit">
 
             <h3 className="text-sm font-semibold text-gray-500 uppercase mb-6">
                 🟢 Online ({users.length})

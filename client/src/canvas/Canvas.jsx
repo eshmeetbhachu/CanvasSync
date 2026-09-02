@@ -298,6 +298,8 @@ function Canvas({roomId,onRoomError}) {
 
     socket.on("room-error", handleRoomError);
 
+    socket.connect();
+
     return () => {
         window.removeEventListener(
             "mouseup",
@@ -323,7 +325,7 @@ function Canvas({roomId,onRoomError}) {
 
   return (
     <>
-    <div className="flex gap-6 px-8 pb-8 pt-5">
+    <div className="flex gap-6 px-6 pb-8 pt-5">
     
     {/* left online participant panel */}
      <OnlineUsers
