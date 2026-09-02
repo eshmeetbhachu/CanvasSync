@@ -12,9 +12,16 @@ const emitRoomUsers = async (io, roomId) => {
 
     const sockets = await io.in(roomId).fetchSockets();
 
-    const users = sockets.map((socket) => ({
-        username: socket.data.username,
-    }));
+    const uniqueUsers = new Map();
+
+    for (const socket of sockets) {
+        uniqueUsers.set(socket.data.userId, {
+            userId: socket.data.userId,
+            username: socket.data.username,
+        });
+    }
+
+    const users = Array.from(uniqueUsers.values());
 
     io.to(roomId).emit("room-users", users);
 

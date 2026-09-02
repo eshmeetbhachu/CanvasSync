@@ -14,7 +14,7 @@ function OnlineUsers({ users, username }) {
                 {users.map((user) => (
 
                     <div
-                        key={user.username}
+                        key={user.userId}
                         className="flex items-center gap-3"
                     >
 
