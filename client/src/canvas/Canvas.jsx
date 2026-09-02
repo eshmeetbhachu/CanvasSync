@@ -325,7 +325,7 @@ function Canvas({roomId,onRoomError}) {
 
   return (
     <>
-    <div className="flex gap-6 px-6 pb-8 pt-5">
+    <div className="flex gap-6 px-3 pb-5 pt-5">
     
     {/* left online participant panel */}
      <OnlineUsers
@@ -334,11 +334,11 @@ function Canvas({roomId,onRoomError}) {
     />
 
     {/* canvas */}
-    <div className="relative flex-1 bg-white rounded-2xl border border-gray-200 shadow-lg p-4 overflow-hidden">
+    <div className="relative flex-1 bg-white rounded-2xl shadow-lg p-4 h-[450px] overflow-auto">
     <canvas
       ref={canvasRef}
-      width={950}
-      height={650}
+      width={2000}
+      height={1200}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
       onMouseMove={handleMouseMove}
@@ -353,7 +353,7 @@ function Canvas({roomId,onRoomError}) {
     </div>
 
     {/* right toolbar */}
-    <div className="w-72 shrink-0 bg-white rounded-2xl shadow-lg p-6 space-y-1 flex flex-col gap-8 h-fit">
+    <div className="w-50 shrink-0 bg-white rounded-2xl shadow-lg p-4 space-y-1 flex flex-col gap-5 h-fit">
     <Toolbar 
     currentColor={currentColor}
     currentStrokeWidth={currentStrokeWidth}

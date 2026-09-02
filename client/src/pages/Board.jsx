@@ -51,14 +51,14 @@ function Board() {
     ) : (
 
         <>
-            <div className="flex items-center justify-between px-8 py-3">
+            <div className="flex items-center justify-between px-3 py-3">
 
-                <div>
-                    <h1 className="text-3xl font-bold text-gray-800">
+                <div> 
+                    <h1 className="text-xl font-bold text-gray-800">
                         Collaborative Whiteboard
                     </h1>
 
-                    <p className="text-gray-500 mt-1">
+                    <p className="text-gray-500 mt-1 text-sm">
                         Draw • Collaborate • Create
                     </p>
                 </div>
@@ -67,7 +67,7 @@ function Board() {
 
                     <div className="w-3 h-3 bg-green-500 rounded-full"></div>
 
-                    <span className="text-sm font-medium text-gray-700">
+                    <span className="text-xs font-medium text-gray-700">
                         Connected
                     </span>
 
@@ -76,21 +76,21 @@ function Board() {
             </div>
 
 
-            <div className="mx-8 bg-white rounded-xl shadow px-5 py-2 flex justify-between items-center">
+            <div className="mx-3 bg-white rounded-xl shadow px-3 py-2 flex justify-between items-center">
 
                 <div>
-                    <p className="text-gray-500 text-sm">
+                    <p className="text-gray-500 text-xs">
                         Room ID
                     </p>
 
-                    <h2 className="text-xl font-semibold">
+                    <h2 className="text-lg font-semibold">
                         {roomId}
                     </h2>
                 </div>
 
                 <button
                     onClick={copyInviteLink}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg transition"
+                    className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-1 rounded-lg transition"
                 >
                     {copied ? "Copied!" : "📋 Copy Invite Link"}
                 </button>

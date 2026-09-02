@@ -3,9 +3,9 @@ function OnlineUsers({ users, username }) {
     console.log("Online users:", users);
     
     return (
-        <div className="w-56 shrink-0 bg-white rounded-2xl shadow-lg p-4 h-fit">
+        <div className="w-40 shrink-0 bg-white rounded-2xl shadow-lg p-4 h-fit">
 
-            <h3 className="text-sm font-semibold text-gray-500 uppercase mb-6">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase mb-4">
                 🟢 Online ({users.length})
             </h3>
 
@@ -55,7 +55,7 @@ function OnlineUsers({ users, username }) {
 
                         <div>
 
-                            <p className="font-semibold text-gray-800">
+                            <p className="font-semibold text-gray-800 text-sm">
 
                                 {user.username}
 
