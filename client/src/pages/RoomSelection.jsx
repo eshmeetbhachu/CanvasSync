@@ -85,7 +85,7 @@ function RoomSelection() {
 
                 <button
                     onClick={handleCreateRoom}
-                    className="w-full bg-blue-600 text-white rounded-lg py-3"
+                    className="w-full bg-blue-600 text-white rounded-lg py-3 cursor-pointer"
                 >
                     Create Board
                 </button>
@@ -115,7 +115,7 @@ function RoomSelection() {
 
                 <button
                     onClick={handleJoinRoom}
-                    className="w-full bg-gray-800 text-white rounded-lg py-3"
+                    className="w-full bg-gray-800 text-white rounded-lg py-3 cursor-pointer"
                 >
                     Join Board
                 </button>

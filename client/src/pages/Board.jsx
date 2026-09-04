@@ -41,7 +41,7 @@ function Board() {
 
                 <button
                     onClick={() => navigate("/rooms")}
-                    className="w-full bg-blue-600 text-white rounded-lg py-3"
+                    className="w-full bg-blue-600 text-white rounded-lg py-3 cursor-pointer"
                 >
                     Back to Rooms
                 </button>
