@@ -43,11 +43,18 @@ const registerBoardSocket = (io, socket) => {
     socket.on("join-room",async (data) => {
 
         const user = await User.findById(socket.data.userId);
+
+        if (!user) {
+            socket.emit("room-error", {
+                message: "Authenticated user was not found",
+            });
+            return;
+        }
+
         console.log("Authenticated user:", {
             id: user._id,
             username: user.username,
         });
-        if(!user){return;}
 
         const room = await Room.findOne({
             roomId: data.roomId
