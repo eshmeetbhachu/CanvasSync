@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {drawBoard} from "../utils/render"
 import { getMousePosition } from "../utils/geometry";
@@ -11,7 +11,7 @@ import { useAuth } from "../context/AuthContext";
 
 function Canvas({roomId,onRoomError}) {
 
-  const { accessToken, user } = useAuth();
+  const { accessToken, user, refreshAccessToken } = useAuth();
   const socketRef = useRef(null);
 
   const navigate = useNavigate();
@@ -188,9 +188,9 @@ function Canvas({roomId,onRoomError}) {
     socketRef.current.emit("redo",restoredStroke);
   }
 
-  const handleRoomError = ({ message }) => {
+  const handleRoomError = useCallback(({ message }) => {
       onRoomError(message);
-  };
+  }, [onRoomError]);
 
   useEffect(() => {
 
@@ -198,6 +198,7 @@ function Canvas({roomId,onRoomError}) {
 
     const socket = createSocket(accessToken);
     socketRef.current = socket;
+    let refreshAttempted = false;
 
 
     const canvas = canvasRef.current;
@@ -224,6 +225,24 @@ function Canvas({roomId,onRoomError}) {
             socket.emit("join-room", {
                 roomId
             });
+        });
+
+        socket.on("connect_error", async (error) => {
+            if (
+                refreshAttempted ||
+                !error.message.toLowerCase().includes("token")
+            ) {
+                return;
+            }
+
+            refreshAttempted = true;
+            socket.disconnect();
+
+            const refreshedToken = await refreshAccessToken();
+
+            if (!refreshedToken) {
+                navigate("/");
+            }
         });
 
         // send the first msg with roomid
@@ -307,6 +326,7 @@ function Canvas({roomId,onRoomError}) {
         );
 
         socket.off("welcome");
+        socket.off("connect_error");
         socket.off("room-users");
         socket.off("stroke");
         socket.off("cursor-move");
@@ -320,7 +340,7 @@ function Canvas({roomId,onRoomError}) {
         socket.disconnect();
         socketRef.current = null;
     };
-  }, [accessToken,roomId]);
+  }, [accessToken, roomId, handleRoomError, navigate, refreshAccessToken]);
 
 
   return (

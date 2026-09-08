@@ -10,7 +10,7 @@ function RoomSelection() {
 
     const navigate = useNavigate();
 
-    const { accessToken, user } = useAuth();
+    const { user, authenticatedFetch } = useAuth();
 
     const handleCreateRoom = async () => {
 
@@ -19,7 +19,7 @@ function RoomSelection() {
         try {
             setError("");
 
-            const response = await fetch(
+            const response = await authenticatedFetch(
                 `${import.meta.env.VITE_API_URL}/api/rooms`,
                 {
                     method: "POST",

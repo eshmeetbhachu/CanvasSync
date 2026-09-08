@@ -154,9 +154,19 @@ export const refresh = async (req, res) => {
             process.env.JWT_REFRESH_SECRET
         );
 
+        const user = await User.findById(decoded.userId).select(
+            "_id username email"
+        );
+
+        if (!user) {
+            return res.status(401).json({
+                message: "User no longer exists",
+            });
+        }
+
         const accessToken = jwt.sign(
             {
-                userId: decoded.userId,
+                userId: user._id,
             },
             process.env.JWT_ACCESS_SECRET,
             {
@@ -166,6 +176,11 @@ export const refresh = async (req, res) => {
 
         return res.status(200).json({
             accessToken,
+            user: {
+                id: user._id,
+                username: user.username,
+                email: user.email,
+            },
         });
 
     } catch (error) {
@@ -173,4 +188,14 @@ export const refresh = async (req, res) => {
             message: "Invalid or expired refresh token",
         });
     }
+};
+
+export const logout = (req, res) => {
+    res.clearCookie("refreshToken", {
+        httpOnly: true,
+        secure: true,
+        sameSite: "none",
+    });
+
+    return res.status(204).send();
 };

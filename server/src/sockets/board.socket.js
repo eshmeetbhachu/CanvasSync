@@ -29,6 +29,16 @@ const emitRoomUsers = async (io, roomId) => {
 
 
 const registerBoardSocket = (io, socket) => {
+    const requireJoinedRoom = () => {
+        if (socket.data.roomId) {
+            return true;
+        }
+
+        socket.emit("room-error", {
+            message: "Join a room before using board actions",
+        });
+        return false;
+    };
 
     // getting the message from browser using .on and using the roomid to send back msg
     // using io.to.emit to send msg to all in that room
@@ -100,6 +110,8 @@ const registerBoardSocket = (io, socket) => {
 
     // adding the handler for getting strokes
     socket.on("stroke",async (stroke) => {
+        if (!requireJoinedRoom()) return;
+
         const roomId = socket.data.roomId;
 
         // Real-time path: immediately send stroke to other users
@@ -120,6 +132,7 @@ const registerBoardSocket = (io, socket) => {
 
     // socket for recevieng and send the cursor details
     socket.on("cursor-move", (cursor) => {
+            if (!requireJoinedRoom()) return;
 
             socket.broadcast
                 .to(socket.data.roomId)
@@ -129,6 +142,8 @@ const registerBoardSocket = (io, socket) => {
 
     // get the erased stroke and broadcast it to others + change in db
     socket.on("erase", async (strokeId) => {
+        if (!requireJoinedRoom()) return;
+
         const roomId = socket.data.roomId;
         socket.broadcast.to(roomId).emit("erase", strokeId);
         await deleteStroke(roomId, strokeId);
@@ -136,12 +151,16 @@ const registerBoardSocket = (io, socket) => {
 
     // for undo
     socket.on("undo", async () => {
+        if (!requireJoinedRoom()) return;
+
         const roomId = socket.data.roomId;
         socket.broadcast.to(roomId).emit("undo");
         await undoStroke(roomId);
     });
 
     socket.on("redo", async(restoredStroke) => {
+        if (!requireJoinedRoom()) return;
+
         const roomId = socket.data.roomId;
         socket.broadcast.to(roomId).emit("redo");
         await redoStroke(roomId,restoredStroke);

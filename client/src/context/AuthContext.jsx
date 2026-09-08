@@ -1,4 +1,10 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import {
+    createContext,
+    useCallback,
+    useContext,
+    useEffect,
+    useState,
+} from "react";
 
 const AuthContext = createContext(null);
 
@@ -8,7 +14,7 @@ export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    const refreshAccessToken = async () => {
+    const refreshAccessToken = useCallback(async () => {
         try {
             const response = await fetch(
                 `${import.meta.env.VITE_API_URL}/api/auth/refresh`,
@@ -27,6 +33,7 @@ export const AuthProvider = ({ children }) => {
             const data = await response.json();
 
             setAccessToken(data.accessToken);
+            setUser(data.user);
 
             return data.accessToken;
 
@@ -38,7 +45,7 @@ export const AuthProvider = ({ children }) => {
 
             return null;
         }
-    };
+    }, []);
 
     useEffect(() => {
 
@@ -66,7 +73,7 @@ export const AuthProvider = ({ children }) => {
 
         restoreSession();
 
-    }, []);
+    }, [refreshAccessToken]);
 
     const login = async (email, password) => {
 
@@ -97,10 +104,45 @@ export const AuthProvider = ({ children }) => {
         return data;
     };
 
-    const logout = async () => {
+    const authenticatedFetch = useCallback(async (url, options = {}) => {
+        const request = (token) => fetch(url, {
+            ...options,
+            credentials: "include",
+            headers: {
+                ...options.headers,
+                Authorization: `Bearer ${token}`,
+            },
+        });
 
-        setAccessToken(null);
-        setUser(null);
+        let response = await request(accessToken);
+
+        if (response.status !== 401) {
+            return response;
+        }
+
+        const refreshedToken = await refreshAccessToken();
+
+        if (!refreshedToken) {
+            return response;
+        }
+
+        response = await request(refreshedToken);
+        return response;
+    }, [accessToken, refreshAccessToken]);
+
+    const logout = async () => {
+        try {
+            await fetch(
+                `${import.meta.env.VITE_API_URL}/api/auth/logout`,
+                {
+                    method: "POST",
+                    credentials: "include",
+                }
+            );
+        } finally {
+            setAccessToken(null);
+            setUser(null);
+        }
     };
 
     return (
@@ -112,6 +154,7 @@ export const AuthProvider = ({ children }) => {
                 login,
                 logout,
                 refreshAccessToken,
+                authenticatedFetch,
             }}
         >
             {children}
