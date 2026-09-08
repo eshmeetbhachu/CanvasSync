@@ -25,7 +25,6 @@ function RoomSelection() {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
-                        Authorization: `Bearer ${accessToken}`,
                     },
                     body: JSON.stringify({
                         name: boardName,
