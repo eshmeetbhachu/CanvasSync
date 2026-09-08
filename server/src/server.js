@@ -13,9 +13,11 @@ import registerSocket from "./sockets/index.js";
 import { publisher, subscriber, connectRedis } from "./config/redis.js";
 // importing the adapter function from the redis-adapter package
 import { createAdapter } from "@socket.io/redis-adapter";
+import startStrokeWorker from "./worker.js";
 
 await connectDB();
 await connectRedis();
+startStrokeWorker();
 
 // created the hhtp server
 const server = http.createServer(app);

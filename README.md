@@ -13,6 +13,7 @@ CanvasSync is a real-time collaborative whiteboard that enables multiple users t
 - ↩️ Undo / Redo synchronization
 - 📍 Real-time cursor tracking
 - 💾 Persistent board storage using MongoDB
+- 🧵 Reliable stroke persistence using BullMQ
 - ⚡ Horizontal scaling with Redis
 - 🔄 Cross-server synchronization using Socket.IO Redis Adapter
 
@@ -41,8 +42,10 @@ CanvasSync is a real-time collaborative whiteboard that enables multiple users t
         └──────── Redis Adapter ──────┘
                      │
                    Redis
-                     │
-                 MongoDB
+                   /     \
+          BullMQ queue   Socket.IO adapter
+                │
+              MongoDB
 ```
 
 ---
@@ -78,6 +81,12 @@ Emit Socket Event
      │
      ▼
 Broadcast to Room
+     │
+     ▼
+Add stroke to BullMQ
+     │
+     ▼
+BullMQ worker
      │
      ▼
 Persist in MongoDB
@@ -186,6 +195,12 @@ MONGO_URI=your_mongodb_connection_string
 ```bash
 npm run dev
 ```
+
+The server process starts both the Socket.IO API and the BullMQ persistence
+worker. A separate worker process is not required, which allows deployment as
+a single Render web service instead of paying for a separate worker service.
+Queued strokes remain in Redis while the service is asleep and are processed
+when the service starts again.
 
 ---
 
