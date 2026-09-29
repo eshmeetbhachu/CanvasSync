@@ -34,6 +34,10 @@ const BoardSchema = new mongoose.Schema({
         unique: true,
     },
     strokes: [StrokeSchema],
+    // Legacy storage: set once this board's strokes have been copied into the Stroke collection.
+    migratedAt: {
+        type: Date,
+    },
 });
 
 const Board = mongoose.model("Board", BoardSchema);

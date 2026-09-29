@@ -1,8 +1,7 @@
-import strokeQueue from "../config/queue.js";
 import Room from "../models/Room.js";
 import User from "../models/User.js";
-import { saveStroke , loadBoard , deleteStroke , undoStroke ,redoStroke} from "../services/board.service.js";
-import { isValidRoomId, isValidStrokeId, sanitizeCursor, sanitizeStroke } from "../validators/board.validator.js";
+import { addStroke, loadBoard, setStrokeDeleted } from "../services/board.service.js";
+import { isValidRev, isValidRoomId, isValidStrokeId, sanitizeCursor, sanitizeStroke } from "../validators/board.validator.js";
 
 // the structure is . rooms is an object, and inside we make objects named the roomId, and inside we store the socketid as key and usernname as values.
 // const rooms = {};   was hardcoded, replaced by the emitroomusers function
@@ -30,200 +29,124 @@ const emitRoomUsers = async (io, roomId) => {
 
 
 const registerBoardSocket = (io, socket) => {
-    const requireJoinedRoom = () => {
-        if (socket.data.roomId) {
-            return true;
-        }
-
-        socket.emit("room-error", {
-            message: "Join a room before using board actions",
-        });
-        return false;
-    };
+    const NOT_JOINED = { ok: false, message: "Join a room before using board actions" };
 
     // Socket.IO ignores listener return values, so an uncaught rejection here would terminate the process.
-    const on = (event, handler, onError) => {
+    // Handlers return their acknowledgement; a thrown error is acknowledged as a failure.
+    const on = (event, handler, errorMessage = "Server error") => {
         socket.on(event, async (...args) => {
+            const ack = typeof args.at(-1) === "function" ? args.pop() : null;
+
             try {
-                await handler(...args);
+                const result = await handler(...args);
+                ack?.(result);
             } catch (error) {
                 console.error(`Socket event "${event}" failed for ${socket.id}:`, error);
-                onError?.(error);
+                ack?.({ ok: false, message: errorMessage });
             }
         });
     };
 
-    const rejectPayload = (event) => {
+    const rejectPayload = (event, message) => {
         console.warn(`Rejected invalid "${event}" payload from ${socket.id}`);
+        return { ok: false, message };
     };
 
-    // getting the message from browser using .on and using the roomid to send back msg
-    // using io.to.emit to send msg to all in that room
-    on("hello", (data) => {
-        console.log(data);
-        io.to(socket.data.roomId).emit("welcome", {
-            message: `joined ${socket.data.roomId}`
-        });
-    });
-
     // joins the room with providied roomId
-    on("join-room",async (data) => {
-
+    on("join-room", async (data) => {
         const roomId = data?.roomId;
 
         if (!isValidRoomId(roomId)) {
-            socket.emit("room-error", {
-                message: "Invalid room ID",
-            });
-            return;
+            return { ok: false, message: "Invalid room ID" };
         }
 
         const user = await User.findById(socket.data.userId);
 
         if (!user) {
-            socket.emit("room-error", {
-                message: "Authenticated user was not found",
-            });
-            return;
+            return { ok: false, message: "Authenticated user was not found" };
         }
 
-        console.log("Authenticated user:", {
-            id: user._id,
-            username: user.username,
-        });
-
-        const room = await Room.findOne({
-            roomId
-        });
+        const room = await Room.exists({ roomId });
 
         if (!room) {
-            socket.emit("room-error", {
-                message: "Room does not exist"
-            });
-
-            return;
+            return { ok: false, message: "Room does not exist" };
         }
 
+        // Join before reading the board: any change committed after the read is then broadcast to this socket.
         await socket.join(roomId);
         // stored the roomid in extra storage of socket so we dont have to get it again and again
         socket.data.roomId = roomId;
         socket.data.username = user.username;
-        console.log("Socket data:", socket.data);
-
-        // the below was the hardcoded method to get the usernames of the sockets.
-
-        // if (!rooms[data.roomId]) {
-        //     rooms[data.roomId] = {};
-        // }
-
-        // rooms[data.roomId][socket.id] = {
-        //     username: data.username,
-        // };
-
-        // io.to(data.roomId).emit(
-        //     "room-users",
-        //     Object.values(rooms[data.roomId])
-        // );
 
         await emitRoomUsers(io, roomId);
 
-        const board = await loadBoard(socket.data.roomId);
-        // send the board to the frontend
-        socket.emit("board-data", board.strokes);
+        const strokes = await loadBoard(roomId);
 
         console.log(`✅ ${socket.id} aka ${socket.data.username} joined ${roomId}`);
-    }, () => {
-        socket.emit("room-error", {
-            message: "Failed to join room",
-        });
-    });
 
-    // adding the handler for getting strokes
-    on("stroke",async (payload) => {
-        if (!requireJoinedRoom()) return;
+        return { ok: true, strokes };
+    }, "Failed to join room");
 
-        const stroke = sanitizeStroke(payload);
-
-        if (!stroke) {
-            rejectPayload("stroke");
-            return;
-        }
-
+    // Persist first, then broadcast the stored state; the sender gets the same state in its acknowledgement.
+    on("stroke:add", async (data) => {
         const roomId = socket.data.roomId;
 
-        // Real-time path: immediately send stroke to other users
-        socket.broadcast.to(roomId).emit("stroke",stroke);
+        if (!roomId) return NOT_JOINED;
 
-        // Persistence path: put the work into the queue
-        try {
-            const job = await strokeQueue.add("save-stroke", {
-            roomId,
-            stroke,
+        const stroke = sanitizeStroke(data?.stroke);
+
+        if (!stroke) return rejectPayload("stroke:add", "Invalid stroke");
+
+        const { stroke: saved } = await addStroke(roomId, stroke);
+
+        socket.to(roomId).emit("stroke:changed", saved);
+
+        return { ok: true, stroke: saved };
+    });
+
+    // Erase, undo and redo are all a delete or restore of one stroke, guarded by the rev the client last saw.
+    const onVisibilityChange = (event, deleted) => {
+        on(event, async (data) => {
+            const roomId = socket.data.roomId;
+
+            if (!roomId) return NOT_JOINED;
+
+            if (!isValidStrokeId(data?.id) || !isValidRev(data?.baseRev)) {
+                return rejectPayload(event, "Invalid stroke change");
+            }
+
+            const { stroke } = await setStrokeDeleted(roomId, data.id, data.baseRev, deleted);
+
+            if (!stroke) return { ok: false, message: "Stroke not found" };
+
+            socket.to(roomId).emit("stroke:changed", stroke);
+
+            return { ok: true, stroke };
         });
+    };
 
-        console.log("Job added:", job.id);
-        } catch (error) {
-            console.error("Failed to save stroke to queue:", error);
-        }
-    })
+    onVisibilityChange("stroke:delete", true);
+    onVisibilityChange("stroke:restore", false);
 
     // socket for recevieng and send the cursor details
     on("cursor-move", (payload) => {
-            if (!requireJoinedRoom()) return;
+        const roomId = socket.data.roomId;
 
-            const cursor = sanitizeCursor(payload, {
-                id: socket.id,
-                name: socket.data.username,
-            });
+        if (!roomId) return;
 
-            if (!cursor) {
-                rejectPayload("cursor-move");
-                return;
-            }
+        const cursor = sanitizeCursor(payload, {
+            id: socket.id,
+            name: socket.data.username,
+        });
 
-            socket.broadcast
-                .to(socket.data.roomId)
-                .emit("cursor-move", cursor);
-
-    });
-
-    // get the erased stroke and broadcast it to others + change in db
-    on("erase", async (strokeId) => {
-        if (!requireJoinedRoom()) return;
-
-        if (!isValidStrokeId(strokeId)) {
-            rejectPayload("erase");
+        if (!cursor) {
+            rejectPayload("cursor-move");
             return;
         }
 
-        const roomId = socket.data.roomId;
-        socket.broadcast.to(roomId).emit("erase", strokeId);
-        await deleteStroke(roomId, strokeId);
+        // Volatile: a dropped cursor position is replaced by the next one, so never queue them.
+        socket.to(roomId).volatile.emit("cursor-move", cursor);
     });
-
-    // for undo
-    on("undo", async () => {
-        if (!requireJoinedRoom()) return;
-
-        const roomId = socket.data.roomId;
-        socket.broadcast.to(roomId).emit("undo");
-        await undoStroke(roomId);
-    });
-
-    on("redo", async(payload) => {
-        if (!requireJoinedRoom()) return;
-
-        const restoredStroke = sanitizeStroke(payload);
-
-        if (!restoredStroke) {
-            rejectPayload("redo");
-            return;
-        }
-
-        const roomId = socket.data.roomId;
-        socket.broadcast.to(roomId).emit("redo");
-        await redoStroke(roomId,restoredStroke);
-    })
 
     // for the disconnection
     on("disconnect", async() => {

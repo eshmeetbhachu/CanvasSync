@@ -1,17 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import Board from "../models/Board.js";
+import { toStrokesFromLegacy } from "../services/legacyBoardMigration.service.js";
 import {
     MAX_STROKE_POINTS,
+    isValidRev,
     isValidRoomId,
     isValidStrokeId,
     sanitizeCursor,
     sanitizeStroke,
-    sanitizeStrokes,
 } from "./board.validator.js";
 
 const validStroke = () => ({
-    id: 1760000000000,
+    id: "3b241101-e2bb-4255-8caf-4136c566a962",
     color: "black",
     strokeWidth: 4,
     points: [{ x: 10.5, y: 20 }, { x: 11, y: 21.25 }],
@@ -39,26 +39,36 @@ test("isValidRoomId rejects operators and malformed ids", () => {
     }
 });
 
-test("isValidStrokeId accepts Date.now() ids", () => {
-    assert.equal(isValidStrokeId(Date.now()), true);
+test("isValidStrokeId accepts UUIDs and migrated legacy ids", () => {
+    assert.equal(isValidStrokeId(crypto.randomUUID()), true);
+    assert.equal(isValidStrokeId("1760000000000"), true);
 });
 
-test("isValidStrokeId rejects operators and non-integers", () => {
+test("isValidStrokeId rejects operators, non-strings and unsafe characters", () => {
     for (const value of [
         { $gt: 0 },
         { $exists: true },
-        "abc",
-        "1760000000000",
-        0,
-        -1,
-        1.5,
-        NaN,
-        Infinity,
-        2 ** 53,
+        ["abc"],
+        1760000000000,
+        "",
+        "a".repeat(65),
+        "abc def",
+        "abc$",
+        "a.b",
+        "a\n",
         null,
         undefined,
     ]) {
-        assert.equal(isValidStrokeId(value), false, String(value));
+        assert.equal(isValidStrokeId(value), false, JSON.stringify(value));
+    }
+});
+
+test("isValidRev accepts positive safe integers only", () => {
+    assert.equal(isValidRev(1), true);
+    assert.equal(isValidRev(2 ** 40), true);
+
+    for (const value of [0, -1, 1.5, NaN, Infinity, 2 ** 53, "1", { $gt: 0 }, null, undefined]) {
+        assert.equal(isValidRev(value), false, String(value));
     }
 });
 
@@ -96,15 +106,6 @@ test("sanitizeStroke strips extra fields such as MongoDB _id", () => {
     });
 });
 
-test("sanitizeStroke accepts strokes hydrated from the Board model", () => {
-    const board = Board.hydrate({
-        roomId: "a1b2c3d4e5f6",
-        strokes: [validStroke()],
-    });
-
-    assert.deepEqual(sanitizeStroke(board.strokes[0]), validStroke());
-});
-
 test("sanitizeStroke rejects malformed strokes", () => {
     const tooManyPoints = Array.from({ length: MAX_STROKE_POINTS + 1 }, () => ({ x: 1, y: 1 }));
 
@@ -112,7 +113,7 @@ test("sanitizeStroke rejects malformed strokes", () => {
         ["null", null],
         ["array", [validStroke()]],
         ["string", "stroke"],
-        ["id only", { id: 1 }],
+        ["id only", { id: "abc" }],
         ["missing points", { ...validStroke(), points: undefined }],
         ["empty points", { ...validStroke(), points: [] }],
         ["points object", { ...validStroke(), points: { 0: { x: 1, y: 1 } } }],
@@ -121,7 +122,8 @@ test("sanitizeStroke rejects malformed strokes", () => {
         ["string coordinate", { ...validStroke(), points: [{ x: "1", y: 1 }] }],
         ["missing coordinate", { ...validStroke(), points: [{ x: 1 }] }],
         ["operator id", { ...validStroke(), id: { $gt: 0 } }],
-        ["string id", { ...validStroke(), id: "abc" }],
+        ["numeric id", { ...validStroke(), id: 1760000000000 }],
+        ["id with operator characters", { ...validStroke(), id: "$where" }],
         ["operator colour", { ...validStroke(), color: { $gt: "" } }],
         ["css injection colour", { ...validStroke(), color: "red; background: url(x)" }],
         ["overlong colour", { ...validStroke(), color: "a".repeat(31) }],
@@ -133,12 +135,23 @@ test("sanitizeStroke rejects malformed strokes", () => {
     }
 });
 
-test("sanitizeStrokes keeps valid strokes and drops invalid ones", () => {
-    const stroke = validStroke();
+test("toStrokesFromLegacy converts numeric ids and drops bad or duplicate strokes", () => {
+    const legacy = {
+        _id: "6abaabad62e8bc7e8e52c011",
+        id: 1760000000000,
+        color: "red",
+        strokeWidth: 6,
+        points: [{ x: 1, y: 2, _id: "6abaabad62e8bc7e8e52c012" }],
+    };
 
-    assert.deepEqual(sanitizeStrokes([stroke, null, { id: 1 }, stroke]), [stroke, stroke]);
-    assert.deepEqual(sanitizeStrokes(null), []);
-    assert.deepEqual(sanitizeStrokes({ 0: stroke }), []);
+    assert.deepEqual(
+        toStrokesFromLegacy([legacy, null, { id: 7 }, { ...legacy }, { ...legacy, id: 1760000000001 }]),
+        [
+            { id: "1760000000000", color: "red", strokeWidth: 6, points: [{ x: 1, y: 2 }] },
+            { id: "1760000000001", color: "red", strokeWidth: 6, points: [{ x: 1, y: 2 }] },
+        ]
+    );
+    assert.deepEqual(toStrokesFromLegacy(undefined), []);
 });
 
 const alice = { id: "aliceSocketId", name: "alice" };

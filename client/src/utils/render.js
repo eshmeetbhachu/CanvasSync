@@ -22,6 +22,17 @@ export const drawStroke = (ctx, stroke) => {
     ctx.stroke();
 };
 
+export const drawSegment = (ctx, stroke, from, to) => {
+
+    ctx.strokeStyle = stroke.color;
+    ctx.lineWidth = stroke.strokeWidth;
+
+    ctx.beginPath();
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(to.x, to.y);
+    ctx.stroke();
+};
+
 export const drawBoard = (
     ctx,
     canvas,

@@ -13,8 +13,14 @@ const COLOR_PATTERN = /^(?:[a-z]{1,30}|#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8}
 export const isValidRoomId = (roomId) =>
     typeof roomId === "string" && ROOM_ID_PATTERN.test(roomId);
 
+// crypto.randomUUID() from clients, or digit strings for strokes migrated from the legacy Board.
+const STROKE_ID_PATTERN = /^[A-Za-z0-9-]{1,64}$/;
+
 export const isValidStrokeId = (strokeId) =>
-    Number.isSafeInteger(strokeId) && strokeId > 0;
+    typeof strokeId === "string" && STROKE_ID_PATTERN.test(strokeId);
+
+export const isValidRev = (rev) =>
+    Number.isSafeInteger(rev) && rev > 0;
 
 const isPlainObject = (value) =>
     typeof value === "object" && value !== null && !Array.isArray(value);
@@ -84,19 +90,4 @@ export const sanitizeCursor = (cursor, identity) => {
         x: position.x,
         y: position.y,
     };
-};
-
-// Drops invalid entries so already-persisted bad strokes are never served.
-export const sanitizeStrokes = (strokes) => {
-    if (!Array.isArray(strokes)) return [];
-
-    const canonicalStrokes = [];
-
-    for (const stroke of strokes) {
-        const canonicalStroke = sanitizeStroke(stroke);
-
-        if (canonicalStroke) canonicalStrokes.push(canonicalStroke);
-    }
-
-    return canonicalStrokes;
 };

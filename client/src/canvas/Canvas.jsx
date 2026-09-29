@@ -1,26 +1,29 @@
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import {drawBoard} from "../utils/render"
+import { drawBoard, drawSegment } from "../utils/render";
 import { getMousePosition } from "../utils/geometry";
 import Toolbar from "../components/Toolbar";
 import createSocket from "../sockets/socket";
 import OnlineUsers from "../components/Onlineusers";
 import throttle from "../utils/throttle";
-import RemoteCursor from "../components/RemoteCursor";
+import RemoteCursors from "../components/RemoteCursors";
 import { useAuth } from "../context/AuthContext";
+import { createBoardSync } from "./boardSync";
+
+const CURSOR_INTERVAL_MS = 100;
+const ERASER_TOLERANCE = 12;
 
 function Canvas({roomId,onRoomError}) {
 
   const { accessToken, user, refreshAccessToken } = useAuth();
   const socketRef = useRef(null);
+  const syncRef = useRef(null);
+  const cursorsRef = useRef(null);
 
   const navigate = useNavigate();
 
   // to send to the onlineusers.jsx for the left panel
   const [users,setUsers] = useState([]);
-
-  // same as rooms for storing the cursor details
-  const [cursors, setCursors] = useState({});
 
   const canvasRef = useRef(null);
   const contextRef = useRef(null);
@@ -28,36 +31,24 @@ function Canvas({roomId,onRoomError}) {
   // helps us to know if we are currectly drawing , used useref becasue it doesnt change the ui and update without rendering
   const isDrawing = useRef(false);
 
-  // use both to store each stroke made. currentstroke stores the stroke attributes and board stores the strokes
+  // the stroke being drawn right now; finished strokes live in the board sync
   const currentStroke = useRef(null);
-  const board = useRef([]);
 
   // using useref for color and width
   const currentColor = useRef("black");
   const currentStrokeWidth = useRef(4);
 
-  // we create a redo-stack. since redos follow LIFO
-  const redoStack = useRef([]);
-
   // we add another useref for eraser and other tool.
   const currentTool = useRef("pencil");
 
-  // shifted mouse postion to geometry.js
-
-  // making a helper function for rendering the board
+  // redraws every visible stroke plus the one being drawn
   const render = () => {
-
-    console.log(
-        "RENDERING BOARD:",
-        board.current.length,
-        "current stroke:",
-        currentStroke.current
-    );
+    if (!contextRef.current) return;
 
     drawBoard(
         contextRef.current,
         canvasRef.current,
-        board.current,
+        syncRef.current?.visibleStrokes() ?? [],
         currentStroke.current
     );
   };
@@ -68,64 +59,46 @@ function Canvas({roomId,onRoomError}) {
     event,
     canvasRef.current
     );
-    console.log("eraser function reached")
 
-    for(let i=0;i < board.current.length; i++){
-      const stroke = board.current[i];
-      for(const point of stroke.points){
-        const tolerance = 12;
-        const dx = point.x-x;
-        const dy = point.y-y;
-        const distance = Math.sqrt(dx*dx + dy*dy);
+    for (const stroke of syncRef.current?.visibleStrokes() ?? []) {
+      for (const point of stroke.points) {
+        const dx = point.x - x;
+        const dy = point.y - y;
 
-        if(distance<=tolerance){
-          // get the erased stroke to send to other browsers
-          const erasedStroke = board.current[i];
-          board.current.splice(i,1);
-          render();
-          socketRef.current.emit("erase", erasedStroke.id);
-          return
+        if (Math.sqrt(dx * dx + dy * dy) <= ERASER_TOLERANCE) {
+          syncRef.current.eraseStroke(stroke.id);
+          return;
         }
       }
     }
   };
 
-  const sendStrokes = () => {
-    // emitting the stroke to the socket server so it broadcasts it
-    socketRef.current.emit("stroke",currentStroke.current)
-  }
-
   // making the finish stroke as a function so it can be used anywhere
   const finishStroke = () => {
     if (!isDrawing.current || !currentStroke.current) return;
     isDrawing.current = false;
-    redoStack.current = [];
-    board.current.push(currentStroke.current);
 
-    console.log("LOCAL BOARD AFTER STROKE:", board.current);
-
-    sendStrokes();
+    const stroke = currentStroke.current;
     currentStroke.current = null;
+
+    syncRef.current?.addStroke(stroke);
     render();
   };
 
-    // we will use throttle function for this
-  const updateCursor = ({ x, y }) => {
+  // created once so the throttle keeps its timer across re-renders
+  const throttledUpdateCursor = useMemo(
+    () =>
+      throttle(({ x, y }) => {
+        const socket = socketRef.current;
 
-    socketRef.current.emit("cursor-move", {
-        id: socketRef.current.id,
-        name: user.username,
-        x,
-        y,
-    });
-  };
+        if (!socket || !syncRef.current?.isJoined()) return;
 
-  // adding throttle to the cursor movement req
-  const throttledUpdateCursor = throttle(updateCursor, 50);
+        socket.volatile.emit("cursor-move", { x, y });
+      }, CURSOR_INTERVAL_MS),
+    []
+  );
 
   const handleMouseDown = (event) => {
-    console.log(currentTool)
-
     if (currentTool.current === "eraser") {
           eraseStroke(event);
           return;
@@ -139,14 +112,11 @@ function Canvas({roomId,onRoomError}) {
 
     // initaite the stroke with attributes
     currentStroke.current = {
-      id: Date.now(),
+      id: crypto.randomUUID(),
       color: currentColor.current, // dynamic color storage
       strokeWidth: currentStrokeWidth.current,
-      points: []
+      points: [{ x, y }]
     }
-
-    // push the start point of stroke to the currentstroke points
-    currentStroke.current.points.push({x,y});
   };
 
   const handleMouseMove = (event) => {
@@ -156,57 +126,38 @@ function Canvas({roomId,onRoomError}) {
     event,
     canvasRef.current
     );
-    throttledUpdateCursor({ x, y });  
-    // push the points on each mouse move
-    currentStroke.current.points.push({x,y});
-    render();
+    throttledUpdateCursor({ x, y });
+
+    const points = currentStroke.current.points;
+    const previous = points[points.length - 1];
+    points.push({ x, y });
+
+    // only the new segment needs drawing; a full redraw happens when the board changes
+    drawSegment(contextRef.current, currentStroke.current, previous, { x, y });
   };
 
-  const handleMouseUp = (event) => {
+  const handleMouseUp = () => {
     finishStroke();
   };
 
+  const undo = () => syncRef.current?.undo();
 
-  // shifted the draw board and draw stroke to render.js in utils
+  const redo = () => syncRef.current?.redo();
 
-  const undo = () => {
-    if (board.current.length === 0) return
-    const removedStroke = board.current.pop();
-    redoStack.current.push(removedStroke);
-    render();
-    console.log(redoStack.current);
-
-    socketRef.current.emit("undo");
-  }
-
-  const redo = () => {
-    if (redoStack.current.length === 0) return;
-    const restoredStroke = redoStack.current.pop();
-    board.current.push(restoredStroke);
-    render();
-
-    socketRef.current.emit("redo",restoredStroke);
-  }
-
-  const handleRoomError = useCallback(({ message }) => {
-      onRoomError(message);
-  }, [onRoomError]);
-
+  // The board sync outlives socket reconnections and token refreshes, so unsent changes are kept.
   useEffect(() => {
-
-    if (!accessToken) return;
-
-    const socket = createSocket(accessToken);
-    socketRef.current = socket;
-    let refreshAttempted = false;
-
-
-    const canvas = canvasRef.current;
-    const context = canvas.getContext("2d");
+    const context = canvasRef.current.getContext("2d");
     context.lineCap = "round";
     context.lineJoin = "round";
-
     contextRef.current = context;
+
+    const sync = createBoardSync({
+      roomId,
+      onChange: render,
+      onJoinError: onRoomError,
+    });
+    syncRef.current = sync;
+    render();
 
     const handleWindowMouseUp = () => {
         finishStroke();
@@ -217,14 +168,30 @@ function Canvas({roomId,onRoomError}) {
         handleWindowMouseUp
     );
 
-    // saying hi to server from browser using .emit
-        // means socket wants to join room with roomId
-        socket.on("connect", () => {
-            console.log("Socket connected:", socket.id);
+    return () => {
+      window.removeEventListener(
+          "mouseup",
+          handleWindowMouseUp
+      );
+      sync.destroy();
+      syncRef.current = null;
+    };
+    // render and finishStroke only read refs, so they are safe to capture once per room
+  }, [roomId, onRoomError]);
 
-            socket.emit("join-room", {
-                roomId
-            });
+  useEffect(() => {
+
+    if (!accessToken) return;
+
+    const socket = createSocket(accessToken);
+    socketRef.current = socket;
+    let refreshAttempted = false;
+
+    syncRef.current?.attach(socket);
+
+        socket.on("connect", () => {
+            // cursors from before a reconnect may belong to users who have since left
+            cursorsRef.current?.clear();
         });
 
         socket.on("connect_error", async (error) => {
@@ -245,108 +212,38 @@ function Canvas({roomId,onRoomError}) {
             }
         });
 
-        // send the first msg with roomid
-        socket.emit("hello",{
-          message: "hello server !",
-        });
+        // getting the users from the server rather than using the frontend
+        socket.on("room-users", setUsers);
 
-        // get the reply from server
-        socket.on("welcome",(msg) => {
-          console.log(msg);
-        })
-
-        // getting the users from the server rather than using the frontend 
-        socket.on("room-users", (users) => {
-            console.log(users);
-            setUsers(users);
-        });
- 
-    // receive the strokes from the original sender via the socket server
-    socket.on("stroke",(stroke) => {
-      console.log("Received stroke", stroke);
-       board.current.push(stroke);
-       render();
-    })
-
-    // gets the socket details and adds them to the state, also we dont add we assign
     socket.on("cursor-move", (cursor) => {
-      console.log(cursor);
-        setCursors((prev) => ({
-            ...prev,
-            [cursor.id]: cursor,
-        }));
+        cursorsRef.current?.move(cursor);
     });
 
     // to remove the disconneted socket id cursor details.
-    // we use this method to create new obj and not directly use delete
     socket.on("cursor-remove", ({ id }) => {
-        setCursors((prev) => {
-            const { [id]: removedCursor, ...remaining } = prev;
-            return remaining;
-        });
+        cursorsRef.current?.remove(id);
     });
-
-    // receiving the strokes from the mongodb database
-    socket.on("board-data", (strokes) => {
-        board.current = strokes;
-        render();
-    });
-
-    // receiving the stroke erased and then updating the board.current
-    socket.on("erase", (strokeId) => {
-        board.current = board.current.filter(
-            stroke => stroke.id !== strokeId
-        );
-        render();
-    });
-
-    // the same undo code for all the other boards
-    socket.on("undo", () => {
-        if (board.current.length === 0) return;
-        const removedStroke = board.current.pop();
-        redoStack.current.push(removedStroke);
-        render();
-    });
-
-    socket.on("redo", () => {
-        if (redoStack.current.length === 0) return;
-        const restoredStroke = redoStack.current.pop();
-        board.current.push(restoredStroke);
-        render();
-    });
-
-    socket.on("room-error", handleRoomError);
 
     socket.connect();
 
     return () => {
-        window.removeEventListener(
-            "mouseup",
-            handleWindowMouseUp
-        );
-
-        socket.off("welcome");
+        syncRef.current?.detach();
+        socket.off("connect");
         socket.off("connect_error");
         socket.off("room-users");
-        socket.off("stroke");
         socket.off("cursor-move");
         socket.off("cursor-remove");
-        socket.off("board-data");
-        socket.off("erase");
-        socket.off("undo");
-        socket.off("redo");
-        socket.off("room-error", handleRoomError);
 
         socket.disconnect();
         socketRef.current = null;
     };
-  }, [accessToken, roomId, handleRoomError, navigate, refreshAccessToken]);
+  }, [accessToken, roomId, navigate, refreshAccessToken]);
 
 
   return (
     <>
     <div className="flex gap-6 px-3 pb-5 pt-5">
-    
+
     {/* left online participant panel */}
      <OnlineUsers
     users={users}
@@ -364,17 +261,12 @@ function Canvas({roomId,onRoomError}) {
       onMouseMove={handleMouseMove}
     />
     {/*helps make the box over the cursor */}
-    {Object.values(cursors).map((cursor) => (
-        <RemoteCursor
-            key={cursor.id}
-            cursor={cursor}
-        />
-    ))}
+    <RemoteCursors ref={cursorsRef} />
     </div>
 
     {/* right toolbar */}
     <div className="w-50 shrink-0 bg-white rounded-2xl shadow-lg p-4 space-y-1 flex flex-col gap-5 h-fit">
-    <Toolbar 
+    <Toolbar
     currentColor={currentColor}
     currentStrokeWidth={currentStrokeWidth}
     currentTool={currentTool}
@@ -383,10 +275,8 @@ function Canvas({roomId,onRoomError}) {
     </div>
     </div>
     </>
-    
+
   );
 }
 
 export default Canvas;
-
-// address the syncronization 

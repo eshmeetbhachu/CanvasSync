@@ -22,6 +22,12 @@ const roomSchema = new mongoose.Schema({
         type: Date,
         default: Date.now,
     },
+
+    // Last sequence number handed out for this room's stroke changes.
+    seq: {
+        type: Number,
+        default: 0,
+    },
 });
 
 const Room = mongoose.model("Room", roomSchema);

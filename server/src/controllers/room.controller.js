@@ -1,6 +1,5 @@
 import crypto from "crypto";
 import Room from "../models/Room.js";
-import Board from "../models/Board.js";
 
 export const createRoom = async (req, res) => {
     try {
@@ -10,11 +9,6 @@ export const createRoom = async (req, res) => {
             roomId,
             ownerId: req.userId,
             name: req.body.name,
-        });
-
-        await Board.create({
-            roomId,
-            strokes: [],
         });
 
         return res.status(201).json({
