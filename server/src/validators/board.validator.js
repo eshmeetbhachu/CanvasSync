@@ -72,6 +72,20 @@ export const sanitizeStroke = (stroke) => {
     };
 };
 
+// Only the position comes from the client; identity must come from the authenticated socket.
+export const sanitizeCursor = (cursor, identity) => {
+    const position = sanitizePoint(cursor);
+
+    if (!position) return null;
+
+    return {
+        id: identity.id,
+        name: identity.name,
+        x: position.x,
+        y: position.y,
+    };
+};
+
 // Drops invalid entries so already-persisted bad strokes are never served.
 export const sanitizeStrokes = (strokes) => {
     if (!Array.isArray(strokes)) return [];

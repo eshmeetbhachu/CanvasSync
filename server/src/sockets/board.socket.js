@@ -2,7 +2,7 @@ import strokeQueue from "../config/queue.js";
 import Room from "../models/Room.js";
 import User from "../models/User.js";
 import { saveStroke , loadBoard , deleteStroke , undoStroke ,redoStroke} from "../services/board.service.js";
-import { isValidRoomId, isValidStrokeId, sanitizeStroke } from "../validators/board.validator.js";
+import { isValidRoomId, isValidStrokeId, sanitizeCursor, sanitizeStroke } from "../validators/board.validator.js";
 
 // the structure is . rooms is an object, and inside we make objects named the roomId, and inside we store the socketid as key and usernname as values.
 // const rooms = {};   was hardcoded, replaced by the emitroomusers function
@@ -168,8 +168,18 @@ const registerBoardSocket = (io, socket) => {
     })
 
     // socket for recevieng and send the cursor details
-    on("cursor-move", (cursor) => {
+    on("cursor-move", (payload) => {
             if (!requireJoinedRoom()) return;
+
+            const cursor = sanitizeCursor(payload, {
+                id: socket.id,
+                name: socket.data.username,
+            });
+
+            if (!cursor) {
+                rejectPayload("cursor-move");
+                return;
+            }
 
             socket.broadcast
                 .to(socket.data.roomId)

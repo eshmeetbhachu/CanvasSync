@@ -5,6 +5,7 @@ import {
     MAX_STROKE_POINTS,
     isValidRoomId,
     isValidStrokeId,
+    sanitizeCursor,
     sanitizeStroke,
     sanitizeStrokes,
 } from "./board.validator.js";
@@ -138,4 +139,50 @@ test("sanitizeStrokes keeps valid strokes and drops invalid ones", () => {
     assert.deepEqual(sanitizeStrokes([stroke, null, { id: 1 }, stroke]), [stroke, stroke]);
     assert.deepEqual(sanitizeStrokes(null), []);
     assert.deepEqual(sanitizeStrokes({ 0: stroke }), []);
+});
+
+const alice = { id: "aliceSocketId", name: "alice" };
+
+test("sanitizeCursor relays a valid position with the authenticated identity", () => {
+    assert.deepEqual(
+        sanitizeCursor({ id: "aliceSocketId", name: "alice", x: 12.5, y: 40 }, alice),
+        { id: "aliceSocketId", name: "alice", x: 12.5, y: 40 }
+    );
+});
+
+test("sanitizeCursor ignores a spoofed id", () => {
+    const result = sanitizeCursor({ id: "bobSocketId", name: "alice", x: 1, y: 2 }, alice);
+
+    assert.equal(result.id, "aliceSocketId");
+});
+
+test("sanitizeCursor ignores a spoofed name", () => {
+    const result = sanitizeCursor({ id: "aliceSocketId", name: "bob", x: 1, y: 2 }, alice);
+
+    assert.equal(result.name, "alice");
+});
+
+test("sanitizeCursor drops extra and non-string identity fields", () => {
+    const result = sanitizeCursor(
+        { id: { $gt: "" }, name: { toString: "x" }, x: 1, y: 2, evil: "<img>" },
+        alice
+    );
+
+    assert.deepEqual(result, { id: "aliceSocketId", name: "alice", x: 1, y: 2 });
+});
+
+test("sanitizeCursor rejects malformed positions", () => {
+    for (const [label, value] of [
+        ["undefined", undefined],
+        ["null", null],
+        ["string", "cursor"],
+        ["array", [1, 2]],
+        ["missing y", { x: 1 }],
+        ["string x", { x: "1", y: 2 }],
+        ["object x", { x: { $gt: 0 }, y: 2 }],
+        ["nested", { x: [[[1]]], y: 2 }],
+        ["null x", { x: null, y: 2 }],
+    ]) {
+        assert.equal(sanitizeCursor(value, alice), null, label);
+    }
 });
