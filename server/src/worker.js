@@ -1,7 +1,8 @@
 import "dotenv/config";
 
-import { Worker } from "bullmq";
+import { Worker, UnrecoverableError } from "bullmq";
 import { saveStroke } from "./services/board.service.js";
+import { isValidRoomId, sanitizeStroke } from "./validators/board.validator.js";
 
 // The worker used to connect to MongoDB and Redis here when it ran as a
 // separate process. It is now started by server.js so one Render service can
@@ -18,7 +19,13 @@ const startStrokeWorker = () => {
             console.log("JOB RECEIVED:", job.id);
             console.log("Job data:", job.data);
 
-            const { roomId, stroke } = job.data;
+            // Jobs enqueued before payload validation existed may still be malformed.
+            const roomId = job.data?.roomId;
+            const stroke = sanitizeStroke(job.data?.stroke);
+
+            if (!isValidRoomId(roomId) || !stroke) {
+                throw new UnrecoverableError("Invalid stroke job payload");
+            }
 
             await saveStroke(roomId, stroke);
 

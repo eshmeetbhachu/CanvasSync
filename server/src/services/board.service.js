@@ -1,6 +1,7 @@
 import Board from "../models/Board.js";
 //importung the redis client for cache.
 import {client} from "../config/redis.js"
+import { sanitizeStrokes } from "../validators/board.validator.js";
 
 // to make consistency in redis for all methods
 const invalidateBoardCache = async (roomId) => {
@@ -57,7 +58,7 @@ const loadBoard = async (roomId) => {
         console.log("Cache Hit!")
 
         return {
-            strokes: JSON.parse(cachedBoard)
+            strokes: sanitizeStrokes(JSON.parse(cachedBoard))
         };
     }
 
@@ -67,7 +68,7 @@ const loadBoard = async (roomId) => {
     // here if we find a room we send it otherwise we just send an empty array of strokes
     // useful because otherwise we would send null if no room
     // also we dont handle the case of no room because we dont want to show boards with no strokes on it like that would make 1000s of boards
-    const strokes = board?.strokes ?? [];
+    const strokes = sanitizeStrokes(board?.strokes);
     
     await client.set(
         key,

@@ -2,6 +2,7 @@ import strokeQueue from "../config/queue.js";
 import Room from "../models/Room.js";
 import User from "../models/User.js";
 import { saveStroke , loadBoard , deleteStroke , undoStroke ,redoStroke} from "../services/board.service.js";
+import { isValidRoomId, isValidStrokeId, sanitizeStroke } from "../validators/board.validator.js";
 
 // the structure is . rooms is an object, and inside we make objects named the roomId, and inside we store the socketid as key and usernname as values.
 // const rooms = {};   was hardcoded, replaced by the emitroomusers function
@@ -40,9 +41,25 @@ const registerBoardSocket = (io, socket) => {
         return false;
     };
 
+    // Socket.IO ignores listener return values, so an uncaught rejection here would terminate the process.
+    const on = (event, handler, onError) => {
+        socket.on(event, async (...args) => {
+            try {
+                await handler(...args);
+            } catch (error) {
+                console.error(`Socket event "${event}" failed for ${socket.id}:`, error);
+                onError?.(error);
+            }
+        });
+    };
+
+    const rejectPayload = (event) => {
+        console.warn(`Rejected invalid "${event}" payload from ${socket.id}`);
+    };
+
     // getting the message from browser using .on and using the roomid to send back msg
     // using io.to.emit to send msg to all in that room
-    socket.on("hello", (data) => {
+    on("hello", (data) => {
         console.log(data);
         io.to(socket.data.roomId).emit("welcome", {
             message: `joined ${socket.data.roomId}`
@@ -50,7 +67,16 @@ const registerBoardSocket = (io, socket) => {
     });
 
     // joins the room with providied roomId
-    socket.on("join-room",async (data) => {
+    on("join-room",async (data) => {
+
+        const roomId = data?.roomId;
+
+        if (!isValidRoomId(roomId)) {
+            socket.emit("room-error", {
+                message: "Invalid room ID",
+            });
+            return;
+        }
 
         const user = await User.findById(socket.data.userId);
 
@@ -67,7 +93,7 @@ const registerBoardSocket = (io, socket) => {
         });
 
         const room = await Room.findOne({
-            roomId: data.roomId
+            roomId
         });
 
         if (!room) {
@@ -78,9 +104,9 @@ const registerBoardSocket = (io, socket) => {
             return;
         }
 
-        await socket.join(data.roomId);
+        await socket.join(roomId);
         // stored the roomid in extra storage of socket so we dont have to get it again and again
-        socket.data.roomId = data.roomId;
+        socket.data.roomId = roomId;
         socket.data.username = user.username;
         console.log("Socket data:", socket.data);
 
@@ -99,18 +125,29 @@ const registerBoardSocket = (io, socket) => {
         //     Object.values(rooms[data.roomId])
         // );
 
-        await emitRoomUsers(io, data.roomId);
+        await emitRoomUsers(io, roomId);
 
         const board = await loadBoard(socket.data.roomId);
         // send the board to the frontend
         socket.emit("board-data", board.strokes);
 
-        console.log(`✅ ${socket.id} aka ${socket.data.username} joined ${data.roomId}`);
+        console.log(`✅ ${socket.id} aka ${socket.data.username} joined ${roomId}`);
+    }, () => {
+        socket.emit("room-error", {
+            message: "Failed to join room",
+        });
     });
 
     // adding the handler for getting strokes
-    socket.on("stroke",async (stroke) => {
+    on("stroke",async (payload) => {
         if (!requireJoinedRoom()) return;
+
+        const stroke = sanitizeStroke(payload);
+
+        if (!stroke) {
+            rejectPayload("stroke");
+            return;
+        }
 
         const roomId = socket.data.roomId;
 
@@ -131,7 +168,7 @@ const registerBoardSocket = (io, socket) => {
     })
 
     // socket for recevieng and send the cursor details
-    socket.on("cursor-move", (cursor) => {
+    on("cursor-move", (cursor) => {
             if (!requireJoinedRoom()) return;
 
             socket.broadcast
@@ -141,8 +178,13 @@ const registerBoardSocket = (io, socket) => {
     });
 
     // get the erased stroke and broadcast it to others + change in db
-    socket.on("erase", async (strokeId) => {
+    on("erase", async (strokeId) => {
         if (!requireJoinedRoom()) return;
+
+        if (!isValidStrokeId(strokeId)) {
+            rejectPayload("erase");
+            return;
+        }
 
         const roomId = socket.data.roomId;
         socket.broadcast.to(roomId).emit("erase", strokeId);
@@ -150,7 +192,7 @@ const registerBoardSocket = (io, socket) => {
     });
 
     // for undo
-    socket.on("undo", async () => {
+    on("undo", async () => {
         if (!requireJoinedRoom()) return;
 
         const roomId = socket.data.roomId;
@@ -158,8 +200,15 @@ const registerBoardSocket = (io, socket) => {
         await undoStroke(roomId);
     });
 
-    socket.on("redo", async(restoredStroke) => {
+    on("redo", async(payload) => {
         if (!requireJoinedRoom()) return;
+
+        const restoredStroke = sanitizeStroke(payload);
+
+        if (!restoredStroke) {
+            rejectPayload("redo");
+            return;
+        }
 
         const roomId = socket.data.roomId;
         socket.broadcast.to(roomId).emit("redo");
@@ -167,7 +216,7 @@ const registerBoardSocket = (io, socket) => {
     })
 
     // for the disconnection
-    socket.on("disconnect", async() => {
+    on("disconnect", async() => {
         const roomId = socket.data.roomId;
         const username = socket.data.username;
 
