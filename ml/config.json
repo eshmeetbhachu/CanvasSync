@@ -1,0 +1,22 @@
+{
+  "image_size": 64,
+  "padding": 4,
+  "line_width": 2,
+  "seed": 42,
+  "split": {
+    "val_fraction": 0.15,
+    "test_fraction": 0.15
+  },
+  "quickdraw": {
+    "per_label_cap": 2000,
+    "categories": {
+      "circle": "circle",
+      "square": "rectangle",
+      "triangle": "triangle",
+      "line": "line",
+      "squiggle": "other",
+      "zigzag": "other",
+      "star": "other"
+    }
+  }
+}

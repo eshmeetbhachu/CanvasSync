@@ -125,6 +125,13 @@ function RoomSelection() {
                     </p>
                 )}
 
+                <button
+                    onClick={() => navigate("/collect")}
+                    className="w-full mt-6 text-blue-600 text-sm cursor-pointer"
+                >
+                    Help train the shape recognizer
+                </button>
+
             </div>
 
         </div>

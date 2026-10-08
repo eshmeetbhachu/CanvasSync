@@ -4,6 +4,7 @@ import healthRoutes from "./routes/health.routes.js";
 import authRoutes from "./routes/auth.routes.js";
 import cookieParser from "cookie-parser";
 import roomRoutes from "./routes/room.routes.js";
+import drawingRoutes from "./routes/drawing.routes.js";
 
 import "dotenv/config";
 
@@ -23,5 +24,6 @@ app.use(cookieParser());
 app.use("/", healthRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/rooms", roomRoutes);
+app.use("/api/drawings", drawingRoutes);
 
 export default app;

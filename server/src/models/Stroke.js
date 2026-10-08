@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { SHAPE_TYPES } from "../constants/shapes.js";
 
 const PointSchema = new mongoose.Schema(
     {
@@ -10,6 +11,16 @@ const PointSchema = new mongoose.Schema(
             type: Number,
             required: true,
         },
+    },
+    { _id: false }
+);
+
+const BboxSchema = new mongoose.Schema(
+    {
+        x: { type: Number, required: true },
+        y: { type: Number, required: true },
+        width: { type: Number, required: true },
+        height: { type: Number, required: true },
     },
     { _id: false }
 );
@@ -48,6 +59,14 @@ const StrokeSchema = new mongoose.Schema({
     deleted: {
         type: Boolean,
         default: false,
+    },
+    // Set together, and only on strokes that were snapped to a clean shape; freehand strokes have neither.
+    shapeType: {
+        type: String,
+        enum: SHAPE_TYPES,
+    },
+    bbox: {
+        type: BboxSchema,
     },
 });
 

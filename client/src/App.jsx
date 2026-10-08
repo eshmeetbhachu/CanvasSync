@@ -6,6 +6,7 @@ import Home from "./pages/Home";
 import Board from "./pages/Board";
 import RoomSelection from "./pages/RoomSelection";
 import Signup from "./pages/Signup";
+import Collect from "./pages/Collect";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
@@ -19,6 +20,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <RoomSelection />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/collect"
+              element={
+                <ProtectedRoute>
+                  <Collect />
                 </ProtectedRoute>
               }
             />

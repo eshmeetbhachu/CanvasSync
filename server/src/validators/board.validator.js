@@ -1,5 +1,7 @@
 // Never throw; return canonical copies so untrusted fields/operators can't reach MongoDB, Redis or clients.
 
+import { SHAPE_TYPES } from "../constants/shapes.js";
+
 export const MAX_STROKE_POINTS = 10000;
 export const MIN_STROKE_WIDTH = 1;
 export const MAX_STROKE_WIDTH = 50;
@@ -25,7 +27,7 @@ export const isValidRev = (rev) =>
 const isPlainObject = (value) =>
     typeof value === "object" && value !== null && !Array.isArray(value);
 
-const sanitizePoint = (point) => {
+export const sanitizePoint = (point) => {
     if (!isPlainObject(point)) return null;
 
     const { x, y } = point;
@@ -35,10 +37,22 @@ const sanitizePoint = (point) => {
     return { x, y };
 };
 
+const sanitizeBbox = (bbox) => {
+    if (!isPlainObject(bbox)) return null;
+
+    const { x, y, width, height } = bbox;
+
+    if (![x, y, width, height].every(Number.isFinite)) return null;
+
+    if (width < 0 || height < 0) return null;
+
+    return { x, y, width, height };
+};
+
 export const sanitizeStroke = (stroke) => {
     if (!isPlainObject(stroke)) return null;
 
-    const { id, color, strokeWidth, points } = stroke;
+    const { id, color, strokeWidth, points, shapeType, bbox } = stroke;
 
     if (!isValidStrokeId(id)) return null;
 
@@ -70,12 +84,21 @@ export const sanitizeStroke = (stroke) => {
         canonicalPoints.push(canonicalPoint);
     }
 
-    return {
+    const canonical = {
         id,
         color,
         strokeWidth,
         points: canonicalPoints,
     };
+
+    // Shape metadata is all-or-nothing: a stroke is either freehand or a fully described shape.
+    if (shapeType === undefined && bbox === undefined) return canonical;
+
+    const canonicalBbox = sanitizeBbox(bbox);
+
+    if (!SHAPE_TYPES.includes(shapeType) || !canonicalBbox) return null;
+
+    return { ...canonical, shapeType, bbox: canonicalBbox };
 };
 
 // Only the position comes from the client; identity must come from the authenticated socket.

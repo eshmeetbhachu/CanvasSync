@@ -14,7 +14,7 @@ const toClientStroke = (doc) => {
         };
     }
 
-    return {
+    const stroke = {
         id: doc.strokeId,
         color: doc.color,
         strokeWidth: doc.strokeWidth,
@@ -23,6 +23,15 @@ const toClientStroke = (doc) => {
         rev: doc.rev,
         deleted: false,
     };
+
+    if (doc.shapeType && doc.bbox) {
+        const { x, y, width, height } = doc.bbox;
+
+        stroke.shapeType = doc.shapeType;
+        stroke.bbox = { x, y, width, height };
+    }
+
+    return stroke;
 };
 
 // Gaps are harmless: seq only orders strokes and versions changes, it never counts them.
@@ -60,6 +69,8 @@ const addStroke = async (roomId, stroke) => {
             color: stroke.color,
             strokeWidth: stroke.strokeWidth,
             points: stroke.points,
+            shapeType: stroke.shapeType,
+            bbox: stroke.bbox,
             seq,
             rev: seq,
             deleted: false,

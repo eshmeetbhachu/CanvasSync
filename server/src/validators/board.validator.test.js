@@ -199,3 +199,48 @@ test("sanitizeCursor rejects malformed positions", () => {
         assert.equal(sanitizeCursor(value, alice), null, label);
     }
 });
+
+const shapeStroke = (extra = {}) => ({
+    ...validStroke(),
+    shapeType: "circle",
+    bbox: { x: 10, y: 20, width: 100, height: 80 },
+    ...extra,
+});
+
+test("sanitizeStroke leaves freehand strokes without shape fields", () => {
+    const result = sanitizeStroke(validStroke());
+
+    assert.equal("shapeType" in result, false);
+    assert.equal("bbox" in result, false);
+});
+
+test("sanitizeStroke keeps valid shape metadata and strips extras inside bbox", () => {
+    for (const shapeType of ["circle", "rectangle", "diamond", "triangle", "line", "arrow"]) {
+        const stroke = shapeStroke({ shapeType, bbox: { x: 1.5, y: -2, width: 0, height: 40, evil: 1 } });
+
+        assert.deepEqual(sanitizeStroke(stroke), {
+            ...validStroke(),
+            shapeType,
+            bbox: { x: 1.5, y: -2, width: 0, height: 40 },
+        });
+    }
+});
+
+test("sanitizeStroke rejects incomplete or invalid shape metadata", () => {
+    for (const [label, value] of [
+        ["shapeType without bbox", shapeStroke({ bbox: undefined })],
+        ["bbox without shapeType", shapeStroke({ shapeType: undefined })],
+        ["unknown shape", shapeStroke({ shapeType: "hexagon" })],
+        ["'other' is a label, not a shape", shapeStroke({ shapeType: "other" })],
+        ["operator shapeType", shapeStroke({ shapeType: { $ne: null } })],
+        ["null shapeType", shapeStroke({ shapeType: null })],
+        ["null bbox", shapeStroke({ bbox: null })],
+        ["array bbox", shapeStroke({ bbox: [1, 2, 3, 4] })],
+        ["missing height", shapeStroke({ bbox: { x: 1, y: 2, width: 3 } })],
+        ["string width", shapeStroke({ bbox: { x: 1, y: 2, width: "3", height: 4 } })],
+        ["negative width", shapeStroke({ bbox: { x: 1, y: 2, width: -3, height: 4 } })],
+        ["operator in bbox", shapeStroke({ bbox: { x: { $gt: 0 }, y: 2, width: 3, height: 4 } })],
+    ]) {
+        assert.equal(sanitizeStroke(value), null, label);
+    }
+});
