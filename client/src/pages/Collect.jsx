@@ -221,10 +221,10 @@ function Collect() {
                         </button>
 
                         <button
-                            onClick={() => navigate("/rooms")}
+                            onClick={() => navigate("/dashboard")}
                             className="bg-gray-800 text-white rounded-lg px-3 py-2 text-sm cursor-pointer"
                         >
-                            Back to boards
+                            Back to dashboard
                         </button>
                     </div>
 

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
+import { FiArrowLeft } from "react-icons/fi";
 import Canvas from "../canvas/Canvas";
 
 function Board() {
@@ -40,10 +41,10 @@ function Board() {
                 </p>
 
                 <button
-                    onClick={() => navigate("/rooms")}
+                    onClick={() => navigate("/dashboard")}
                     className="w-full bg-blue-600 text-white rounded-lg py-3 cursor-pointer"
                 >
-                    Back to Rooms
+                    Back to dashboard
                 </button>
             </div>
         </div>
@@ -53,7 +54,11 @@ function Board() {
         <>
             <div className="flex items-center justify-between px-3 py-3">
 
-                <div> 
+                <div>
+                    <Link to="/dashboard" className="inline-flex items-center gap-1.5 text-sm text-olive hover:text-ink">
+                        <FiArrowLeft aria-hidden="true" />
+                        Your boards
+                    </Link>
                     <h1 className="text-xl font-bold text-gray-800">
                         Collaborative Whiteboard
                     </h1>

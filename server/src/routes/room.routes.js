@@ -1,9 +1,12 @@
 import express from "express";
-import { createRoom } from "../controllers/room.controller.js";
+import { createRoom, deleteRoom, listRooms, renameRoom } from "../controllers/room.controller.js";
 import authMiddleware from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 
+router.get("/", authMiddleware, listRooms);
 router.post("/", authMiddleware, createRoom);
+router.patch("/:roomId", authMiddleware, renameRoom);
+router.delete("/:roomId", authMiddleware, deleteRoom);
 
 export default router;

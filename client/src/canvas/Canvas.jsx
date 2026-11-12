@@ -208,7 +208,7 @@ function Canvas({roomId,onRoomError}) {
             const refreshedToken = await refreshAccessToken();
 
             if (!refreshedToken) {
-                navigate("/");
+                navigate("/login");
             }
         });
 

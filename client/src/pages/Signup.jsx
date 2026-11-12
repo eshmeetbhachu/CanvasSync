@@ -1,120 +1,112 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import AuthLayout from "../components/layout/AuthLayout";
+import Button from "../components/ui/Button";
+import Input from "../components/ui/Input";
+import PasswordInput from "../components/ui/PasswordInput";
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MIN_PASSWORD_LENGTH = 8;
+
+const validate = ({ username, email, password }) => {
+    const errors = {};
+
+    if (!username.trim()) errors.username = "Choose a username";
+    else if (username.trim().length > 30) errors.username = "Keep it under 30 characters";
+
+    if (!EMAIL_PATTERN.test(email.trim())) errors.email = "Enter a valid email address";
+
+    if (password.length < MIN_PASSWORD_LENGTH) errors.password = `Use at least ${MIN_PASSWORD_LENGTH} characters`;
+
+    return errors;
+};
+
+// On success the user is logged in, and PublicOnlyRoute moves them on to the dashboard.
 function Signup() {
+    const { signup } = useAuth();
+    const location = useLocation();
 
-    const [username, setUsername] = useState("");
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [error, setError] = useState("");
+    const [fields, setFields] = useState({ username: "", email: "", password: "" });
+    const [errors, setErrors] = useState({});
+    const [submitting, setSubmitting] = useState(false);
 
-    const navigate = useNavigate();
+    const update = (name) => (event) => setFields((current) => ({ ...current, [name]: event.target.value }));
 
-    const handleSignup = async () => {
+    const handleSubmit = async (event) => {
+        event.preventDefault();
 
-        if (!username.trim() || !email.trim() || !password.trim()) {
-            setError("Username, email and password are required");
-            return;
-        }
+        const nextErrors = validate(fields);
+        setErrors(nextErrors);
+
+        if (Object.keys(nextErrors).length > 0) return;
+
+        setSubmitting(true);
 
         try {
-            setError("");
-
-            const response = await fetch(
-                `${import.meta.env.VITE_API_URL}/api/auth/signup`,
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    credentials: "include",
-                    body: JSON.stringify({
-                        username,
-                        email,
-                        password,
-                    }),
-                }
-            );
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                setError(data.message || "Signup failed");
-                return;
-            }
-
-            console.log("Signup successful");
-
-            // After signup, go back to login
-            navigate("/");
-
+            await signup(fields.username.trim(), fields.email.trim(), fields.password);
         } catch (error) {
-            console.error("Signup failed:", error);
-            setError("Unable to create account");
+            setErrors({
+                form: error.message === "User already exists"
+                    ? "That username or email is already taken."
+                    : error.message,
+            });
+            setSubmitting(false);
         }
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-100">
-
-            <div className="bg-white rounded-xl shadow-lg p-8 w-96">
-
-                <h1 className="text-3xl font-bold mb-6">
-                    Create Account
-                </h1>
-
-                <input
-                    className="border rounded-lg w-full p-3 mb-4"
-                    placeholder="Username"
-                    value={username}
-                    onChange={(e) =>
-                        setUsername(e.target.value)
-                    }
+        <AuthLayout
+            title="Create your account"
+            subtitle="Free, and ready in under a minute."
+            footer={
+                <>
+                    Already have an account?{" "}
+                    <Link to="/login" state={location.state} className="font-medium text-ink underline-offset-4 hover:underline">
+                        Log in
+                    </Link>
+                </>
+            }
+        >
+            <form onSubmit={handleSubmit} noValidate className="space-y-5">
+                <Input
+                    label="Username"
+                    autoComplete="username"
+                    hint="Shown on your cursor to collaborators."
+                    value={fields.username}
+                    error={errors.username}
+                    onChange={update("username")}
                 />
 
-                <input
-                    className="border rounded-lg w-full p-3 mb-4"
-                    placeholder="Email"
+                <Input
+                    label="Email"
                     type="email"
-                    value={email}
-                    onChange={(e) =>
-                        setEmail(e.target.value)
-                    }
+                    autoComplete="email"
+                    value={fields.email}
+                    error={errors.email}
+                    onChange={update("email")}
                 />
 
-                <input
-                    className="border rounded-lg w-full p-3 mb-4"
-                    placeholder="Password"
-                    type="password"
-                    value={password}
-                    onChange={(e) =>
-                        setPassword(e.target.value)
-                    }
+                <PasswordInput
+                    label="Password"
+                    autoComplete="new-password"
+                    hint={`At least ${MIN_PASSWORD_LENGTH} characters.`}
+                    value={fields.password}
+                    error={errors.password}
+                    onChange={update("password")}
                 />
 
-                <button
-                    onClick={handleSignup}
-                    className="w-full bg-blue-600 text-white rounded-lg py-3"
-                >
-                    Create Account
-                </button>
-
-                {error && (
-                    <p className="text-red-500 text-sm mt-4">
-                        {error}
+                {errors.form && (
+                    <p role="alert" className="rounded-xl bg-danger/10 px-4 py-3 text-sm text-danger">
+                        {errors.form}
                     </p>
                 )}
 
-                <button
-                    onClick={() => navigate("/")}
-                    className="w-full mt-4 text-gray-600"
-                >
-                    Back to Login
-                </button>
-
-            </div>
-
-        </div>
+                <Button type="submit" size="lg" loading={submitting} className="w-full">
+                    Create account
+                </Button>
+            </form>
+        </AuthLayout>
     );
 }
 

@@ -38,7 +38,7 @@ const toClientStroke = (doc) => {
 const nextSeq = async (roomId) => {
     const room = await Room.findOneAndUpdate(
         { roomId },
-        { $inc: { seq: 1 } },
+        { $inc: { seq: 1 }, $set: { updatedAt: new Date() } },
         { returnDocument: "after", projection: { seq: 1 } }
     ).lean();
 

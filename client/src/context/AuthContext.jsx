@@ -51,22 +51,8 @@ export const AuthProvider = ({ children }) => {
 
         const restoreSession = async () => {
 
-            const token = await refreshAccessToken();
-
-            if (token) {
-                try {
-                    const payload = JSON.parse(
-                        atob(token.split(".")[1])
-                    );
-
-                    setUser({
-                        id: payload.userId,
-                    });
-
-                } catch (error) {
-                    console.error("Failed to decode token:", error);
-                }
-            }
+            // refreshAccessToken already stores the full user (id, username, email).
+            await refreshAccessToken();
 
             setLoading(false);
         };
@@ -102,6 +88,34 @@ export const AuthProvider = ({ children }) => {
         setUser(data.user);
 
         return data;
+    };
+
+    // Creates the account, then logs straight in so the user lands on their dashboard.
+    const signup = async (username, email, password) => {
+
+        const response = await fetch(
+            `${import.meta.env.VITE_API_URL}/api/auth/signup`,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                credentials: "include",
+                body: JSON.stringify({
+                    username,
+                    email,
+                    password,
+                }),
+            }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || "Signup failed");
+        }
+
+        return login(email, password);
     };
 
     const authenticatedFetch = useCallback(async (url, options = {}) => {
@@ -152,6 +166,7 @@ export const AuthProvider = ({ children }) => {
                 user,
                 loading,
                 login,
+                signup,
                 logout,
                 refreshAccessToken,
                 authenticatedFetch,

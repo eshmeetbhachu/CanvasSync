@@ -1,1 +1,87 @@
 @import "tailwindcss";
+
+/* Palette: Smoky Black, Olive Drab, Bone, Floral White; "sand" is a lighter tint of Bone for subtle surfaces. */
+@theme {
+  --color-ink: #11120d;
+  --color-olive: #565449;
+  --color-bone: #d8cfbc;
+  --color-sand: #ece6d9;
+  --color-paper: #fffbf4;
+  --color-danger: #9b2c2c;
+
+  --font-display: "Instrument Serif", Georgia, "Times New Roman", serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+@layer base {
+  html {
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    min-height: 100vh;
+    background-color: var(--color-paper);
+  }
+
+  ::selection {
+    background-color: var(--color-bone);
+    color: var(--color-ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+  }
+}
+
+/* Faint dot grid used behind boards and illustrations. */
+.dot-grid {
+  background-image: radial-gradient(color-mix(in srgb, var(--color-olive) 28%, transparent) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+
+/* Hero illustration: strokes draw themselves in, cursors drift. */
+.draw-in {
+  stroke-dasharray: var(--length);
+  stroke-dashoffset: var(--length);
+  animation: draw-in 1.6s ease-out forwards;
+  animation-delay: var(--delay, 0s);
+}
+
+@keyframes draw-in {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.drift {
+  animation: drift 6s ease-in-out infinite alternate;
+}
+
+.drift-slow {
+  animation: drift 8s ease-in-out infinite alternate-reverse;
+}
+
+@keyframes drift {
+  from {
+    transform: translate(0, 0);
+  }
+  to {
+    transform: translate(18px, -12px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .draw-in {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+
+  .drift,
+  .drift-slow {
+    animation: none;
+  }
+}

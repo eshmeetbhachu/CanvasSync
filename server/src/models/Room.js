@@ -23,12 +23,20 @@ const roomSchema = new mongoose.Schema({
         default: Date.now,
     },
 
+    // Last time anything on the board changed; shown as "edited ..." on the dashboard.
+    updatedAt: {
+        type: Date,
+        default: Date.now,
+    },
+
     // Last sequence number handed out for this room's stroke changes.
     seq: {
         type: Number,
         default: 0,
     },
 });
+
+roomSchema.index({ ownerId: 1, updatedAt: -1 });
 
 const Room = mongoose.model("Room", roomSchema);
 
