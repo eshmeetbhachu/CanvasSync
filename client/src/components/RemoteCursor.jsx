@@ -1,4 +1,9 @@
+import { colorForUser } from "../utils/userColor";
+
+// The +16 offsets match the canvas container's padding.
 function RemoteCursor({ cursor }) {
+    const color = colorForUser(cursor.userId);
+
     return (
         <div
             className="absolute pointer-events-none"
@@ -7,19 +12,13 @@ function RemoteCursor({ cursor }) {
                 top: cursor.y + 16,
             }}
         >
-            {/* Cursor Arrow */}
-            <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="black"
-            >
-                <path d="M3 2L18 15L11 15L8 22L6 21L9 14L3 2Z" />
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 2L18 15L11 15L8 22L6 21L9 14L3 2Z" fill={color} stroke="#FFFBF4" strokeWidth="1.5" strokeLinejoin="round" />
             </svg>
 
-            {/* Username */}
             <div
-                className="mt-1 rounded-md bg-black px-2 py-1 text-xs text-white shadow-md w-fit"
+                className="mt-1 w-fit rounded-full px-2.5 py-0.5 text-xs font-medium text-paper shadow-md"
+                style={{ backgroundColor: color }}
             >
                 {cursor.name}
             </div>

@@ -109,6 +109,7 @@ export const sanitizeCursor = (cursor, identity) => {
 
     return {
         id: identity.id,
+        userId: identity.userId,
         name: identity.name,
         x: position.x,
         y: position.y,

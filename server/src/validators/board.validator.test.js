@@ -154,12 +154,12 @@ test("toStrokesFromLegacy converts numeric ids and drops bad or duplicate stroke
     assert.deepEqual(toStrokesFromLegacy(undefined), []);
 });
 
-const alice = { id: "aliceSocketId", name: "alice" };
+const alice = { id: "aliceSocketId", userId: "aliceUserId", name: "alice" };
 
 test("sanitizeCursor relays a valid position with the authenticated identity", () => {
     assert.deepEqual(
         sanitizeCursor({ id: "aliceSocketId", name: "alice", x: 12.5, y: 40 }, alice),
-        { id: "aliceSocketId", name: "alice", x: 12.5, y: 40 }
+        { id: "aliceSocketId", userId: "aliceUserId", name: "alice", x: 12.5, y: 40 }
     );
 });
 
@@ -181,7 +181,7 @@ test("sanitizeCursor drops extra and non-string identity fields", () => {
         alice
     );
 
-    assert.deepEqual(result, { id: "aliceSocketId", name: "alice", x: 1, y: 2 });
+    assert.deepEqual(result, { id: "aliceSocketId", userId: "aliceUserId", name: "alice", x: 1, y: 2 });
 });
 
 test("sanitizeCursor rejects malformed positions", () => {

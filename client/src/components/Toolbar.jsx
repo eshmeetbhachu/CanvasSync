@@ -1,174 +1,132 @@
 import { useState } from "react";
+import { LuDownload, LuEraser, LuPencil, LuRedo2, LuUndo2 } from "react-icons/lu";
+import Popover from "./ui/Popover";
+import Tooltip from "./ui/Tooltip";
 
-function Toolbar({
-    currentColor,
-    currentStrokeWidth,
-    currentTool,
-    undo,
-    redo
-}) {
+// Must stay names or hex values the server's stroke validator accepts.
+const COLORS = ["black", "red", "blue", "green", "yellow", "purple", "pink", "orange"];
+const BRUSH_SIZES = [4, 6, 10, 15];
 
-    const [selectedColor, setSelectedColor] = useState("black");
-    const [selectedTool, setSelectedTool] = useState("pencil");
-    const [selectedBrushSize, setSelectedBrushSize] = useState(5);
+// `active` is only passed for toggle tools, so plain buttons do not announce a pressed state.
+function ToolButton({ label, active, onClick, children, ...props }) {
+    return (
+        <Tooltip label={label}>
+            <button
+                aria-label={label}
+                aria-pressed={active}
+                onClick={onClick}
+                className={`flex size-10 items-center justify-center rounded-full text-lg cursor-pointer transition-colors ${
+                    active ? "bg-ink text-paper" : "text-ink hover:bg-sand"
+                }`}
+                {...props}
+            >
+                {children}
+            </button>
+        </Tooltip>
+    );
+}
 
-    const colors = [
-        "black",
-        "red",
-        "blue",
-        "green",
-        "yellow",
-        "purple",
-        "pink",
-        "orange"
-    ];
+const Divider = () => <span className="mx-1 h-6 w-px bg-bone" aria-hidden="true" />;
 
-    const brushSizes = [4, 6, 10, 15];
+// Tool, colour and size live in refs owned by Canvas (read on every mouse move); local state only drives the highlight.
+function Toolbar({ currentColor, currentStrokeWidth, currentTool, undo, redo, onExport }) {
+    const [tool, setTool] = useState(currentTool.current);
+    const [color, setColor] = useState(currentColor.current);
+    const [size, setSize] = useState(currentStrokeWidth.current);
 
-    const tools = [
-        {
-            id: "pencil",
-            icon: "✏️",
-        },
-        {
-            id: "eraser",
-            icon: "🩹",
-        },
-    ];
+    const chooseTool = (next) => {
+        currentTool.current = next;
+        setTool(next);
+    };
 
     return (
-        <>
-            {/* Colors */}
+        <div role="toolbar" aria-label="Drawing tools" className="flex items-center gap-1 rounded-full border border-bone bg-paper px-2 py-1.5 shadow-md">
+            <ToolButton label="Pencil" active={tool === "pencil"} onClick={() => chooseTool("pencil")}>
+                <LuPencil aria-hidden="true" />
+            </ToolButton>
+            <ToolButton label="Eraser" active={tool === "eraser"} onClick={() => chooseTool("eraser")}>
+                <LuEraser aria-hidden="true" />
+            </ToolButton>
 
-            <div>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase mb-3">
-                    Colors
-                </h3>
+            <Divider />
 
-                <div className="grid grid-cols-4 gap-2">
-                    {colors.map((color) => (
-                        <button
-                            key={color}
-                            onClick={() => {
-                                setSelectedColor(color);
-                                currentColor.current = color;
-                            }}
-                            className={`
-                                w-8 h-8
-                                rounded-full
-                                transition duration-200
-                                ${
-                                    selectedColor === color
-                                        ? "ring-3 ring-blue-200 scale-110 shadow"
-                                        : "hover:scale-110"
-                                }
-                            `}
-                            style={{ backgroundColor: color }}
-                        />
-                    ))}
-                </div>
-            </div>
-
-
-            {/* Brush Size */}
-
-            <div>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase mb-3">
-                    Brush Size
-                </h3>
-
-                <div className="flex flex-col gap-2">
-                    {brushSizes.map((size) => (
-                        <button
-                            key={size}
-                            onClick={() => {
-                                setSelectedBrushSize(size);
-                                currentStrokeWidth.current = size;
-                            }}
-                            className={`
-                                flex justify-center items-center
-                                py-1
-                                rounded-md
-                                transition duration-200
-                                ${
-                                    selectedBrushSize === size
-                                        ? "bg-blue-50 ring-1 ring-blue-200"
-                                        : "hover:bg-gray-100"
-                                }
-                            `}
-                        >
-                            <div
-                                className="bg-black rounded-full"
-                                style={{
-                                    width: `${size * 4}px`,
-                                    height: `${Math.max(size / 2, 2)}px`,
+            <Popover
+                trigger={({ open, toggle }) => (
+                    <ToolButton label="Colour" onClick={toggle} aria-haspopup="dialog" aria-expanded={open}>
+                        <span className="size-5 rounded-full border border-bone" style={{ backgroundColor: color }} aria-hidden="true" />
+                    </ToolButton>
+                )}
+            >
+                {({ close }) => (
+                    <div className="grid grid-cols-4 gap-2" role="radiogroup" aria-label="Colour">
+                        {COLORS.map((name) => (
+                            <button
+                                key={name}
+                                role="radio"
+                                aria-checked={color === name}
+                                aria-label={name}
+                                onClick={() => {
+                                    currentColor.current = name;
+                                    setColor(name);
+                                    chooseTool("pencil");
+                                    close();
                                 }}
+                                className={`size-8 rounded-full cursor-pointer transition-transform hover:scale-110 ${
+                                    color === name ? "ring-2 ring-ink ring-offset-2 ring-offset-paper" : ""
+                                }`}
+                                style={{ backgroundColor: name }}
                             />
-                        </button>
-                    ))}
-                </div>
-            </div>
+                        ))}
+                    </div>
+                )}
+            </Popover>
 
+            <Popover
+                trigger={({ open, toggle }) => (
+                    <ToolButton label="Brush size" onClick={toggle} aria-haspopup="dialog" aria-expanded={open}>
+                        <span className="rounded-full bg-ink" style={{ width: size + 2, height: size + 2 }} aria-hidden="true" />
+                    </ToolButton>
+                )}
+            >
+                {({ close }) => (
+                    <div className="flex gap-1" role="radiogroup" aria-label="Brush size">
+                        {BRUSH_SIZES.map((value) => (
+                            <button
+                                key={value}
+                                role="radio"
+                                aria-checked={size === value}
+                                aria-label={`${value} pixels`}
+                                onClick={() => {
+                                    currentStrokeWidth.current = value;
+                                    setSize(value);
+                                    close();
+                                }}
+                                className={`flex size-10 items-center justify-center rounded-xl cursor-pointer ${
+                                    size === value ? "bg-sand" : "hover:bg-sand/60"
+                                }`}
+                            >
+                                <span className="rounded-full bg-ink" style={{ width: value + 2, height: value + 2 }} aria-hidden="true" />
+                            </button>
+                        ))}
+                    </div>
+                )}
+            </Popover>
 
-            {/* Actions */}
+            <Divider />
 
-            <div>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase mb-3">
-                    Actions
-                </h3>
+            <ToolButton label="Undo" onClick={undo}>
+                <LuUndo2 aria-hidden="true" />
+            </ToolButton>
+            <ToolButton label="Redo" onClick={redo}>
+                <LuRedo2 aria-hidden="true" />
+            </ToolButton>
 
-                <div className="grid grid-cols-2 gap-2">
-                    <button
-                        className="bg-gray-100 rounded-lg py-2 text-xs hover:bg-gray-200 transition"
-                        onClick={undo}
-                    >
-                        Undo
-                    </button>
+            <Divider />
 
-                    <button
-                        className="bg-gray-100 rounded-lg py-2 text-xs hover:bg-gray-200 transition"
-                        onClick={redo}
-                    >
-                        Redo
-                    </button>
-                </div>
-            </div>
-
-
-            {/* Tools */}
-
-            <div>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase mb-3">
-                    Tools
-                </h3>
-
-                <div className="grid grid-cols-2 gap-2">
-                    {tools.map((tool) => (
-                        <button
-                            key={tool.id}
-                            onClick={() => {
-                                setSelectedTool(tool.id);
-                                currentTool.current = tool.id;
-                            }}
-                            className={`
-                                rounded-lg
-                                py-3
-                                transition duration-200
-                                flex justify-center items-center
-                                text-lg
-                                ${
-                                    selectedTool === tool.id
-                                        ? "bg-blue-50 ring-2 ring-blue-500 scale-105"
-                                        : "bg-gray-100 hover:bg-blue-100"
-                                }
-                            `}
-                        >
-                            {tool.icon}
-                        </button>
-                    ))}
-                </div>
-            </div>
-        </>
+            <ToolButton label="Download as PNG" onClick={onExport}>
+                <LuDownload aria-hidden="true" />
+            </ToolButton>
+        </div>
     );
 }
 

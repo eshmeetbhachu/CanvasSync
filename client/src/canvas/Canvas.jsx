@@ -1,10 +1,11 @@
-import { useRef, useEffect, useState, useMemo } from "react";
+import { useRef, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 import { drawBoard, drawSegment } from "../utils/render";
 import { getMousePosition } from "../utils/geometry";
+import { downloadBoardPng } from "../utils/exportPng";
 import Toolbar from "../components/Toolbar";
 import createSocket from "../sockets/socket";
-import OnlineUsers from "../components/Onlineusers";
 import throttle from "../utils/throttle";
 import RemoteCursors from "../components/RemoteCursors";
 import { useAuth } from "../context/AuthContext";
@@ -13,7 +14,14 @@ import { createBoardSync } from "./boardSync";
 const CURSOR_INTERVAL_MS = 100;
 const ERASER_TOLERANCE = 12;
 
-function Canvas({roomId,onRoomError}) {
+// Connection status shown in the board header: "connecting" | "live" | "saving" | "reconnecting".
+const syncStatus = (sync, hasJoined) => {
+  if (!sync.isJoined()) return hasJoined ? "reconnecting" : "connecting";
+
+  return sync.pendingCount() > 0 ? "saving" : "live";
+};
+
+function Canvas({ roomId, boardName, onRoomError, onUsersChange, onStatusChange }) {
 
   const { accessToken, user, refreshAccessToken } = useAuth();
   const socketRef = useRef(null);
@@ -22,8 +30,14 @@ function Canvas({roomId,onRoomError}) {
 
   const navigate = useNavigate();
 
-  // to send to the onlineusers.jsx for the left panel
-  const [users,setUsers] = useState([]);
+  // latest callbacks from the board page, read from effects that only re-run per room
+  const callbacks = useRef({});
+  callbacks.current = { onUsersChange, onStatusChange, boardName };
+
+  const hasJoined = useRef(false);
+  const lastStatus = useRef(null);
+  // ids of people already on the board, to announce only newcomers; null means "next list is the starting point"
+  const knownUsers = useRef(null);
 
   const canvasRef = useRef(null);
   const contextRef = useRef(null);
@@ -43,7 +57,8 @@ function Canvas({roomId,onRoomError}) {
 
   // redraws every visible stroke plus the one being drawn
   const render = () => {
-    if (!contextRef.current) return;
+    // also called while unmounting (the sync reports the disconnect), when the canvas is already gone
+    if (!contextRef.current || !canvasRef.current) return;
 
     drawBoard(
         contextRef.current,
@@ -144,6 +159,32 @@ function Canvas({roomId,onRoomError}) {
 
   const redo = () => syncRef.current?.redo();
 
+  const exportPng = () => {
+    const strokes = syncRef.current?.visibleStrokes() ?? [];
+
+    if (!downloadBoardPng(strokes, callbacks.current.boardName)) {
+      toast("Nothing to download yet. Draw something first.");
+    }
+  };
+
+  // Called whenever the board or the connection changes.
+  const handleSyncChange = () => {
+    render();
+
+    const sync = syncRef.current;
+
+    if (!sync) return;
+
+    if (sync.isJoined()) hasJoined.current = true;
+
+    const status = syncStatus(sync, hasJoined.current);
+
+    if (status !== lastStatus.current) {
+      lastStatus.current = status;
+      callbacks.current.onStatusChange?.(status);
+    }
+  };
+
   // The board sync outlives socket reconnections and token refreshes, so unsent changes are kept.
   useEffect(() => {
     const context = canvasRef.current.getContext("2d");
@@ -151,13 +192,17 @@ function Canvas({roomId,onRoomError}) {
     context.lineJoin = "round";
     contextRef.current = context;
 
+    hasJoined.current = false;
+    lastStatus.current = null;
+
     const sync = createBoardSync({
       roomId,
-      onChange: render,
+      onChange: handleSyncChange,
       onJoinError: onRoomError,
+      onRejected: () => toast.error("A change couldn't be saved"),
     });
     syncRef.current = sync;
-    render();
+    handleSyncChange();
 
     const handleWindowMouseUp = () => {
         finishStroke();
@@ -192,6 +237,7 @@ function Canvas({roomId,onRoomError}) {
         socket.on("connect", () => {
             // cursors from before a reconnect may belong to users who have since left
             cursorsRef.current?.clear();
+            knownUsers.current = null;
         });
 
         socket.on("connect_error", async (error) => {
@@ -212,8 +258,20 @@ function Canvas({roomId,onRoomError}) {
             }
         });
 
-        // getting the users from the server rather than using the frontend
-        socket.on("room-users", setUsers);
+        socket.on("room-users", (users) => {
+            const ids = new Set(users.map((person) => person.userId));
+
+            if (knownUsers.current) {
+                for (const person of users) {
+                    if (!knownUsers.current.has(person.userId) && person.userId !== user?.id) {
+                        toast(`${person.username} joined`);
+                    }
+                }
+            }
+
+            knownUsers.current = ids;
+            callbacks.current.onUsersChange?.(users);
+        });
 
     socket.on("cursor-move", (cursor) => {
         cursorsRef.current?.move(cursor);
@@ -237,45 +295,36 @@ function Canvas({roomId,onRoomError}) {
         socket.disconnect();
         socketRef.current = null;
     };
-  }, [accessToken, roomId, navigate, refreshAccessToken]);
+  }, [accessToken, roomId, navigate, refreshAccessToken, user?.id]);
 
 
   return (
-    <>
-    <div className="flex gap-6 px-3 pb-5 pt-5">
+    <div className="relative mx-4 mt-8 mb-6 sm:mx-6">
+      {/* floats on the top edge of the board so it covers as little drawing space as possible */}
+      <div className="absolute left-1/2 top-0 z-20 -translate-x-1/2 -translate-y-1/2">
+        <Toolbar
+          currentColor={currentColor}
+          currentStrokeWidth={currentStrokeWidth}
+          currentTool={currentTool}
+          undo={undo}
+          redo={redo}
+          onExport={exportPng}
+        />
+      </div>
 
-    {/* left online participant panel */}
-     <OnlineUsers
-    users={users}
-    username={user?.username}
-    />
-
-    {/* canvas */}
-    <div className="relative flex-1 bg-white rounded-2xl shadow-lg p-4 h-[450px] overflow-auto">
-    <canvas
-      ref={canvasRef}
-      width={2000}
-      height={1200}
-      onMouseDown={handleMouseDown}
-      onMouseUp={handleMouseUp}
-      onMouseMove={handleMouseMove}
-    />
-    {/*helps make the box over the cursor */}
-    <RemoteCursors ref={cursorsRef} />
+      <div className="relative h-[450px] overflow-auto rounded-3xl border border-bone bg-white p-4 shadow-sm">
+        <canvas
+          ref={canvasRef}
+          width={2000}
+          height={1200}
+          onMouseDown={handleMouseDown}
+          onMouseUp={handleMouseUp}
+          onMouseMove={handleMouseMove}
+          className="cursor-crosshair"
+        />
+        <RemoteCursors ref={cursorsRef} />
+      </div>
     </div>
-
-    {/* right toolbar */}
-    <div className="w-50 shrink-0 bg-white rounded-2xl shadow-lg p-4 space-y-1 flex flex-col gap-5 h-fit">
-    <Toolbar
-    currentColor={currentColor}
-    currentStrokeWidth={currentStrokeWidth}
-    currentTool={currentTool}
-    undo={undo}
-    redo={redo}/>
-    </div>
-    </div>
-    </>
-
   );
 }
 

@@ -252,3 +252,26 @@ test("detach stops listening to the old socket", () => {
     assert.deepEqual(ids(sync), []);
     assert.equal(sync.isJoined(), false);
 });
+
+test("reports rejected changes and notifies on disconnect", () => {
+    const socket = createFakeSocket();
+    const rejected = [];
+    let changes = 0;
+    const sync = createBoardSync({
+        roomId: "a1b2c3d4e5f6",
+        onChange: () => { changes += 1; },
+        onRejected: (type, message) => rejected.push([type, message]),
+    });
+
+    sync.attach(socket);
+    socket.connect();
+    socket.last("join-room").ack({ ok: true, strokes: [] });
+    sync.addStroke(stroke("bad"));
+    socket.last("stroke:add").ack({ ok: false, message: "Invalid stroke" });
+
+    assert.deepEqual(rejected, [["add", "Invalid stroke"]]);
+
+    const before = changes;
+    socket.drop();
+    assert.ok(changes > before, "disconnect should trigger onChange so the UI can show reconnecting");
+});

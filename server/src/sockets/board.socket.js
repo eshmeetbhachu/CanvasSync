@@ -136,6 +136,7 @@ const registerBoardSocket = (io, socket) => {
 
         const cursor = sanitizeCursor(payload, {
             id: socket.id,
+            userId: socket.data.userId,
             name: socket.data.username,
         });
 

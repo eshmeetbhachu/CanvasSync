@@ -72,6 +72,30 @@ export const listRooms = async (req, res) => {
     }
 };
 
+// Any signed-in user may read a board's name: holding the link is what grants access to a board.
+export const getRoom = async (req, res) => {
+    try {
+        const { roomId } = req.params;
+
+        if (!isValidRoomId(roomId)) return notFound(res);
+
+        const room = await Room.findOne({ roomId }).lean();
+
+        if (!room) return notFound(res);
+
+        return res.status(200).json({
+            room: toClientRoom(room, req.userId),
+        });
+
+    } catch (error) {
+        console.error("Get room failed:", error);
+
+        return res.status(500).json({
+            message: "Failed to load board",
+        });
+    }
+};
+
 export const renameRoom = async (req, res) => {
     try {
         const { roomId } = req.params;

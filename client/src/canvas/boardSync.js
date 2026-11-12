@@ -8,7 +8,7 @@ const EVENTS = {
 
 const bySeq = (a, b) => (a.seq ?? Infinity) - (b.seq ?? Infinity);
 
-export const createBoardSync = ({ roomId, onChange, onJoinError }) => {
+export const createBoardSync = ({ roomId, onChange, onJoinError, onRejected }) => {
     let socket = null;
     let joined = false;
     let inFlight = false;
@@ -85,6 +85,7 @@ export const createBoardSync = ({ roomId, onChange, onJoinError }) => {
                 applyConfirmed(result.stroke);
             } else if (!result?.ok) {
                 console.warn(`Board change "${op.type}" was rejected:`, result?.message);
+                onRejected?.(op.type, result?.message);
             }
 
             notify();
@@ -125,6 +126,7 @@ export const createBoardSync = ({ roomId, onChange, onJoinError }) => {
         joined = false;
         inFlight = false;
         generation += 1;
+        notify();
     };
 
     const handleChange = (stroke) => {
